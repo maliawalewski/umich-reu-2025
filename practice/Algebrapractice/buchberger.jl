@@ -8,7 +8,7 @@ f1 = x^2 + y^2 + z^2 - 1
 f2 = x^2 + z^2 - y
 f3 = x - z
 
-function buchBerger(F::Vector{A})
+function buchberger(F::Vector{A})
 
     G = F
     G_prime = copy(G)
@@ -105,7 +105,7 @@ end
 
 F = [f1, f2, f3]
 
-basis = Set(buchBerger(F))
+basis = Set(buchberger(F))
 
 for b in basis
     println("Basis element: ", b)
