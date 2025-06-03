@@ -15,14 +15,14 @@ for g in basis
 end
 
 # custom ordering should be the same as DegLex
-weights = [[1, 1, 1],
-           [3, 2, 1],
+weights = [[1, 1, 1], # weight all variables equally
+           [3, 2, 1], # if tied, weight x > y > z
           ]
 
 order = MatrixOrdering([x, y, z], weights)
 custom_basis = groebner(polynomials, ordering=order)
 
-println("Custom Groebner Basis: ")
+println("Groebner Basis (custom ordering): ")
 for g in custom_basis
     println(g)
 end
