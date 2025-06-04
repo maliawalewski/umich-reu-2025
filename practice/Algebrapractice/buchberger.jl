@@ -86,9 +86,30 @@ function S_polynomial(f::A, g::A)
 
 end
 
+function reduced_basis(G::Vector{A})
+    #first condition
+    monic_G = [p / leading_coefficient(p) for p in G]
+
+    reduced_G = []
+    #second condition
+    for i in 1:length(monic_G)
+        p = monic_G[i]
+        G_others = [monic_G[j] for j in 1:length(monic_G) if j != i] # G \ {p}
+
+        _, r = division_alg(p, G_others)
+
+        if r != 0 
+            push!(reduced_G, r)
+        end
+    end 
+    return reduced_G
+end
+
 F = [f1, f2, f3]
 
-basis = buchberger(F)
+basis = Set(buchberger(F))
+basis = reduced_basis(collect(basis))
+
 
 for b in basis
     println("Basis element: ", b)
