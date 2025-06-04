@@ -86,27 +86,12 @@ function S_polynomial(f::A, g::A)
 
 end
 
-function equals(F::Vector{A}, G::Vector{A})
-
-    if length(F) != length(G)
-        return false
-    end
-
-    sorted_F = sort(F, by=leading_monomial)
-    sorted_G = sort(G, by=leading_monomial)
-
-    for i in 1:length(sorted_F)
-        if sorted_F[i] != sorted_G[i]
-            return false
-        end
-    end
-    return true
-end
-
 F = [f1, f2, f3]
 
-basis = Set(buchberger(F))
+basis = buchberger(F)
 
 for b in basis
     println("Basis element: ", b)
 end
+
+

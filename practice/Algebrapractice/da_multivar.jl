@@ -1,13 +1,9 @@
 using Oscar 
 
 R, (x, y) = polynomial_ring(QQ, [:x, :y]; internal_ordering=:lex)
-f = x^2*y + x*y^2 + y^2
-f1 = x*y - 1
-f2 = y^2 - 1
-
-
-# print(typeof(f), "\n")
-
+f = x^2
+f2 = x^3 - 2x*y
+f1 = x*y^2-2y^2+x
 
 
 function division_alg(f::QQMPolyRingElem, F::Vararg{QQMPolyRingElem})
