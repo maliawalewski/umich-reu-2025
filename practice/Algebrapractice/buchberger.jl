@@ -107,8 +107,8 @@ end
 
 F = [f1, f2, f3]
 
-basis = Set(buchberger(F))
-basis = reduced_basis(collect(basis))
+basis = buchberger(F)
+# basis = reduced_basis(collect(basis))
 
 
 for b in basis
