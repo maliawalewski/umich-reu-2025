@@ -30,13 +30,13 @@ grid[4, 4] = 0.0
 # Define actions: (row movement, column movement)
 const actions = [(1, 0), (-1, 0), (0, 1), (0, -1)]  # down, up, right, left
 
-function get_actions(state::Tuple{Int64, Int64})
+function get_actions(state::Tuple{Int64,Int64})
     # returns all valid actions from a given state
-    row, col = state 
-    possible_actions = Tuple{Int64, Int64}[]
+    row, col = state
+    possible_actions = Tuple{Int64,Int64}[]
     for action in actions
         new_row, new_col = row + action[1], col + action[2]
-        if new_row < 1 || new_row > x || new_col < 1 || new_col > y 
+        if new_row < 1 || new_row > x || new_col < 1 || new_col > y
             continue
         end
         push!(possible_actions, action)
@@ -44,12 +44,12 @@ function get_actions(state::Tuple{Int64, Int64})
     return possible_actions
 end
 
-function get_reward(state::Tuple{Int64, Int64}, grid::Array{Float64, 2})
+function get_reward(state::Tuple{Int64,Int64}, grid::Array{Float64,2})
     # returns the reward associated with a given state
     return grid[state[1], state[2]]
 end
 
-function get_transitions(state::Tuple{Int64, Int64}, action::Tuple{Int64, Int64})
+function get_transitions(state::Tuple{Int64,Int64}, action::Tuple{Int64,Int64})
     new_state = (state[1] + action[1], state[2] + action[2])
     return [(1.0, new_state)] # assuming deterministic transitions for now
 end
@@ -69,7 +69,12 @@ function get_best_action(V::Array{Float64,2}, grid::Array{Float64,2}, state::Tup
     return actions_list[argmax(q_values)]
 end
 
-function value_update(V::Array{Float64, 2}, state::Tuple{Int64, Int64}, grid::Array{Float64, 2}, gamma::Float64)
+function value_update(
+    V::Array{Float64,2},
+    state::Tuple{Int64,Int64},
+    grid::Array{Float64,2},
+    gamma::Float64,
+)
     # updates the value according to the bellman equations
     best_value = -Inf
     for action in get_actions(state)
@@ -83,11 +88,16 @@ function value_update(V::Array{Float64, 2}, state::Tuple{Int64, Int64}, grid::Ar
     return best_value
 end
 
-function value_iteration!(V::Array{Float64, 2}, grid::Array{Float64, 2}, theta::Float64, gamma::Float64)
-    while true 
+function value_iteration!(
+    V::Array{Float64,2},
+    grid::Array{Float64,2},
+    theta::Float64,
+    gamma::Float64,
+)
+    while true
         delta = 0.0
-        for i in 1:x
-            for j in 1:y 
+        for i = 1:x
+            for j = 1:y
                 if (i, j) in terminals
                     continue # skip terminal states
                 end
@@ -95,31 +105,31 @@ function value_iteration!(V::Array{Float64, 2}, grid::Array{Float64, 2}, theta::
                 v = V[i, j] # current value 
                 V[i, j] = value_update(V, (i, j), grid, gamma) # bellman update
                 delta = max(delta, abs(v - V[i, j])) # update delta
-            end 
+            end
         end
         if delta < theta
-            break 
-        end 
-    end 
-end 
+            break
+        end
+    end
+end
 
 ## PLOTING FUNCTIONS
 
-function print_grid(grid::Array{Float64, 2})
-    for i in 1:size(grid, 1)
-        for j in 1:size(grid, 2)
+function print_grid(grid::Array{Float64,2})
+    for i = 1:size(grid, 1)
+        for j = 1:size(grid, 2)
             print("$(grid[i, j])\t")
         end
         println()
     end
 end
 
-function plot_grid(grid::Array{Float64, 2})
-    flipped = reverse(grid, dims=1)  # Flip vertically
+function plot_grid(grid::Array{Float64,2})
+    flipped = reverse(grid, dims = 1)  # Flip vertically
     rows, cols = size(flipped)
     annotations = []
-    for i in 1:rows
-        for j in 1:cols
+    for i = 1:rows
+        for j = 1:cols
             if (i, j) == (4, 1) || (i, j) == (1, 4) # terminal states -- flipped for plotting
                 val_str = "T"
             else
@@ -128,21 +138,22 @@ function plot_grid(grid::Array{Float64, 2})
             end
         end
     end
-    p = heatmap(flipped;
+    p = heatmap(
+        flipped;
         color = :viridis,
         title = "Grid Values",
         xlabel = "Columns",
         ylabel = "Rows",
         aspect_ratio = 1,
         annotations = annotations,
-        axis = false
+        axis = false,
     )
     display(p)
 end
 
-function print_policy(V::Array{Float64, 2}, grid::Array{Float64, 2})
-    for i in 1:size(V, 1)
-        for j in 1:size(V, 2)
+function print_policy(V::Array{Float64,2}, grid::Array{Float64,2})
+    for i = 1:size(V, 1)
+        for j = 1:size(V, 2)
             if (i, j) in terminals
                 print("T\t")
             else
@@ -171,4 +182,3 @@ print_grid(V)
 plot_grid(V)
 println("Optimal Policy: ")
 print_policy(V, grid)
-
