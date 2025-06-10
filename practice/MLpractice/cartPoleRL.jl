@@ -9,7 +9,7 @@ import .Plots.plot
 import .Plots.plot!
 import .Plots.annotate!
 
-env = CartPoleEnv()
+env = CartPoleEnv(max_steps=500, thetathreshold=30)
 NUM_STATES = length(state(env))
 NUM_ACTIONS = length(action_space(env))
 
