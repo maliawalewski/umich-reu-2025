@@ -1,2 +1,11 @@
 [deps]
 Calcium_jll = "fcfa6d1b-d8ce-59d5-8c0a-c0d7f69e4f40"
+Crux = "e51cc422-768a-4345-bb8e-2246287ae729"
+Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
+Functors = "d9f16b24-f501-4c13-a1f2-28368ffc5196"
+POMDPTools = "7588e00f-9cae-40de-98dc-e0c70c48cdd7"
+POMDPs = "a93abf59-7444-517b-a68a-c42f96afdd7d"
+QuickPOMDPs = "8af83fb2-a731-493c-9049-9e19dbce6165"
+ReinforcementLearning = "158674fc-8238-5cab-b5ba-03dfc80d1318"
+ReinforcementLearningEnvironments = "25e41dd2-4622-11e9-1641-f1adca772921"
+Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
