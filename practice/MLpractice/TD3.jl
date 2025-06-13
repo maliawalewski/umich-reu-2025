@@ -2,11 +2,12 @@ using Flux
 using DataStructures
 using ReinforcementLearning
 using Statistics
+using Plots
 
 env = PendulumEnv()
 
 CAPACITY = 10000
-EPISODES = 1
+EPISODES = 200
 N_SAMPLES = 100
 GAMMA = 0.99
 TAU = 0.005
@@ -39,6 +40,8 @@ function main()
 
     opt = Flux.Adam(LR)
     opt_state = Flux.setup(opt, actor)
+
+    losses = []
     
     replay_buffer = CircularBuffer{Transition}(CAPACITY)
 
@@ -49,6 +52,7 @@ function main()
         total_reward = 0.0f0
         
         t = 0
+        episode_loss = []
         while !done
             epsilon = randn() * STD
             action = 2.0f0 * actor(s)[1] + epsilon
@@ -74,8 +78,8 @@ function main()
             s_batch = hcat([b.s for b in batch]...)
             a_batch = hcat([b.a for b in batch]...)
             r_batch = hcat([b.r for b in batch]...)
-            next_s_batch = hcat([b.next_s for b in batch if b.next_s !== nothing]...)
-            
+            next_s_batch = hcat([b.next_s !== nothing ? b.next_s : b.s for b in batch]...)
+
             epsilon = clamp.(randn(1, N_SAMPLES) * STD, -0.5f0, 0.5f0)
             target_action = 2.0f0 * target_actor(next_s_batch) .+ epsilon
             target_action = clamp.(target_action, -2.0f0, 2.0f0)
@@ -110,6 +114,7 @@ function main()
                     -mean(q_val)
                 end, Flux.params(actor))
 
+                push!(episode_loss, actor_loss)
                 grads = back(1f0)
                 Flux.Optimise.update!(opt, Flux.params(actor), grads)
 
@@ -121,7 +126,23 @@ function main()
             t += 1
 
         end
+        push!(losses, mean(episode_loss))
+        if i % 100 == 0
+            i_loss = losses[i]
+            println("Episode: $i, Loss: $i_loss")
+        end
     end
+
+    episodes = 1:length(losses)
+    plot(episodes, losses,
+        title = "Loss/t",
+        xlabel = "Episode",
+        ylabel = "Loss",
+        label = "Loss",
+        lw = 2,
+        marker = :circle,
+        legend = :topright)
+
 end
 
 main()
