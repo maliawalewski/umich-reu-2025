@@ -1,5 +1,6 @@
 [deps]
 Crux = "e51cc422-768a-4345-bb8e-2246287ae729"
+DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
 Functors = "d9f16b24-f501-4c13-a1f2-28368ffc5196"
 Groebner = "0b43b601-686d-58a3-8a1c-6623616c7cd4"
