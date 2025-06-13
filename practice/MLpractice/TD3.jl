@@ -1,6 +1,7 @@
 using Flux
 using DataStructures
 using ReinforcementLearning
+using Statistics
 
 env = PendulumEnv()
 
@@ -36,7 +37,7 @@ function main()
     target_q_theta_1 = deepcopy(q_theta_1)
     target_q_theta_2 = deepcopy(q_theta_2)
 
-    opt = ADAM(LR)
+    opt = Flux.Adam(LR)
     opt_state = Flux.setup(opt, actor)
     
     replay_buffer = CircularBuffer{Transition}(CAPACITY)
@@ -102,9 +103,15 @@ function main()
                 q_theta_1 = deepcopy(q_theta_2)
             end
 
-            if t % D == 0 
-                
-                # TODO: actor update 
+            if t % D == 0
+                actor_loss, back = Flux.pullback(() -> begin
+                    a_pred = actor(s_batch)
+                    q_val = q_theta_1(vcat(s_batch, a_pred))
+                    -mean(q_val)
+                end, Flux.params(actor))
+
+                grads = back(1f0)
+                Flux.Optimise.update!(opt, Flux.params(actor), grads)
 
                 soft_update!(target_q_theta_1, q_theta_1)
                 soft_update!(target_q_theta_2, q_theta_2)
