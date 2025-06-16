@@ -2,6 +2,7 @@ using Flux
 using DataStructures
 using ReinforcementLearning
 using Statistics
+using Optimisers
 using Plots
 
 env = PendulumEnv()
@@ -38,7 +39,7 @@ function main()
     target_q_theta_1 = deepcopy(q_theta_1)
     target_q_theta_2 = deepcopy(q_theta_2)
 
-    opt = Flux.Adam(LR)
+    opt = ADAM(LR)
     opt_state = Flux.setup(opt, actor)
 
     losses = []
