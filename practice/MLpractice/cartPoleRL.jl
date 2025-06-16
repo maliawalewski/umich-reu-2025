@@ -3,6 +3,7 @@ import ReinforcementLearning: reset!, act!, state, reward, is_terminated, action
 using DataStructures
 using Flux
 using Random
+using Optimisers
 import Plots
 import .Plots.gui
 import .Plots.plot

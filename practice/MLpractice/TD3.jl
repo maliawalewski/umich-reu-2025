@@ -7,7 +7,7 @@ using Plots
 env = PendulumEnv()
 
 CAPACITY = 10000
-EPISODES = 200
+EPISODES = 1000
 N_SAMPLES = 100
 GAMMA = 0.99
 TAU = 0.005
@@ -134,7 +134,7 @@ function main()
     end
 
     episodes = 1:length(losses)
-    plot(episodes, losses,
+    p = plot(episodes, losses,
         title = "Loss/t",
         xlabel = "Episode",
         ylabel = "Loss",
@@ -142,6 +142,8 @@ function main()
         lw = 2,
         marker = :circle,
         legend = :topright)
+
+    savefig(p, "loss_plot.png")
 
 end
 
