@@ -6,8 +6,10 @@ using AbstractAlgebra
 
 C = CalciumField()
 R, (x, y, z) = polynomial_ring(C, ["x", "y", "z"])
-polynomials = [x*z - y^2, x^3 - z^2]
+polynomials = [x*z - y^2 + x^2, x^3 - z^2]
 basis = groebner(polynomials, ordering=DegLex())
+
+println(isgroebner(basis))
 
 println("Groebner Basis: ")
 for g in basis
@@ -16,11 +18,14 @@ end
 
 # custom ordering should be the same as DegLex
 weights = [[1, 1, 1], # weight all variables equally
-           [3, 2, 1], # if tied, weight x > y > z
-          ]
+           [0, 0, 0], # if tied, weight x > y > z
+           [0, 0, 0],
+           [0, 0, 0]]
 
 order = MatrixOrdering([x, y, z], weights)
 custom_basis = groebner(polynomials, ordering=order)
+
+println(isgroebner(custom_basis))
 
 println("Groebner Basis (custom ordering): ")
 for g in custom_basis
