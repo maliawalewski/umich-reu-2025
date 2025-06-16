@@ -29,6 +29,35 @@ function soft_update!(target, policy)
     end
 end
 
+function plot_pendulum(env::PendulumEnv; kwargs...)
+    s = state(env) 
+    cosθ, sinθ, θ̇ = s
+
+    θ = atan(sinθ, cosθ)
+    l = 1.0
+
+    x = l * sin(θ)
+    y = -l * cos(θ)
+
+    plot(
+        xlims = (-l - 0.2, l + 0.2),
+        ylims = (-l - 0.2, l + 0.2),
+        aspect_ratio = :equal,
+        legend = false,
+        title = "Pendulum",
+        size = (300, 300),
+        background_color = :white,
+        grid = false,
+        framestyle = :none
+    )
+
+    plot!([0, x], [0, y]; lw = 3, color = :black)
+    scatter!([x], [y]; markersize = 10, color = :red)
+
+    gui()
+end
+
+
 function main() 
     actor = Flux.Chain(Dense(3, 128, relu), Dense(128, 128, relu), Dense(128, 1, tanh))
   
@@ -60,9 +89,11 @@ function main()
             action = clamp(action, -2.0f0, 2.0f0)
 
             act!(env, action)
+            plot_pendulum(env)
 
             s_next = Float32.(state(env))
             r = Float32(reward(env))
+            total_reward += r
             done = is_terminated(env)
             next_s = done ? nothing : s_next
 
@@ -135,9 +166,9 @@ function main()
 
         end
         push!(losses, mean(episode_loss))
-        if i % 100 == 0
+        if i % 1 == 0
             i_loss = losses[i]
-            println("Episode: $i, Loss: $i_loss")
+            println("Episode: $i, Loss: $i_loss, Reward: $total_reward")
         end
     end
 
