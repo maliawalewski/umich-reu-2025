@@ -108,15 +108,22 @@ function main()
             end
 
             if t % D == 0
-                actor_loss, back = Flux.pullback(() -> begin
-                    a_pred = actor(s_batch)
+                # actor_loss, back = Flux.pullback(() -> begin
+                    # a_pred = actor(s_batch)
+                    # q_val = q_theta_1(vcat(s_batch, a_pred))
+                    # -mean(q_val)
+                # end, Flux.params(actor))
+                
+                actor_loss, back = Flux.withgradient(actor) do model
+                    a_pred = model(s_batch)
                     q_val = q_theta_1(vcat(s_batch, a_pred))
                     -mean(q_val)
-                end, Flux.params(actor))
+                end
 
                 push!(episode_loss, actor_loss)
-                grads = back(1f0)
-                Flux.Optimise.update!(opt, Flux.params(actor), grads)
+                grads = back[1]
+                # Flux.Optimise.update!(opt, Flux.params(actor), grads)
+                Flux.update!(opt_state, actor, grads)
 
                 soft_update!(target_q_theta_1, q_theta_1)
                 soft_update!(target_q_theta_2, q_theta_2)
