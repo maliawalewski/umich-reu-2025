@@ -24,10 +24,22 @@ function act!(env::Environment, action::Vector{Float32})
     trace, basis = groebner_learn(polynomials, ordering=order)
 
     env.state = weight_vector
-end 
+end
 
-function reward(env::Environment)
-    #needs fill
+function reward(trace::Groebner.WrappedTrace)
+    @assert length(trace.recorded_traces) == 1 "WrappedTrace struct is tracking multiple traces"
+    for (k, t) in trace.recorded_traces
+        total_reward = 0
+        println(length(t.matrix_infos))
+        for iter in 1:length(t.matrix_infos)
+            n_cols = t.matrix_infos[iter][3]
+            pair_degree = t.critical_pair_sequence[iter][1]
+            pair_count = t.critical_pair_sequence[iter][2]
+
+            total_reward += (n_cols * pair_count * log(pair_degree))
+        end
+    end
+    return -total_reward
 end
 
 #checks if vector is within state space 
