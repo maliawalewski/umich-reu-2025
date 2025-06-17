@@ -7,12 +7,12 @@ using Plots
 
 env = PendulumEnv()
 
-CAPACITY = 10000
+CAPACITY = 1_000_000
 EPISODES = 1000
-N_SAMPLES = 100
+N_SAMPLES = 256
 GAMMA = 0.99
 TAU = 0.005
-LR = 0.001
+LR = 3e-4
 STD = 0.2
 D = 2
 
@@ -57,7 +57,6 @@ function plot_pendulum(env::PendulumEnv; kwargs...)
     gui()
 end
 
-
 function main() 
     actor = Flux.Chain(Dense(3, 128, relu), Dense(128, 128, relu), Dense(128, 1, tanh))
   
@@ -70,6 +69,12 @@ function main()
 
     opt = ADAM(LR)
     opt_state = Flux.setup(opt, actor)
+
+    critic_opt1 = ADAM(LR)
+    critic_opt2 = ADAM(LR)
+    
+    critic_state1 = Flux.setup(critic_opt1, q_theta_1)
+    critic_state2 = Flux.setup(critic_opt2, q_theta_2)
 
     losses = []
     
@@ -93,7 +98,6 @@ function main()
 
             s_next = Float32.(state(env))
             r = Float32(reward(env))
-            total_reward += r
             done = is_terminated(env)
             next_s = done ? nothing : s_next
 
@@ -110,42 +114,39 @@ function main()
             s_batch = hcat([b.s for b in batch]...)
             a_batch = hcat([b.a for b in batch]...)
             r_batch = hcat([b.r for b in batch]...)
-            next_s_batch = hcat([b.next_s !== nothing ? b.next_s : b.s for b in batch]...)
+            
+            next_s_batch = hcat([b.next_s !== nothing ? b.next_s : zeros(Float32, 3) for b in batch]...)
+            not_done = reshape(Float32.(getfield.(batch, :next_s) .!== nothing), 1, :)
 
             epsilon = clamp.(randn(1, N_SAMPLES) * STD, -0.5f0, 0.5f0)
-            target_action = 2.0f0 * target_actor(next_s_batch) .+ epsilon
-            target_action = clamp.(target_action, -2.0f0, 2.0f0)
+            target_action = clamp.(2.0f0 * target_actor(next_s_batch) .+ epsilon, -2f0, 2f0)
 
-            q_input = vcat(next_s_batch, target_action)
+            q_val_1 = target_q_theta_1(vcat(next_s_batch, target_action))
+            q_val_2 = target_q_theta_2(vcat(next_s_batch, target_action))
 
-            q_val_1 = target_q_theta_1(q_input)
-            q_val_2 = target_q_theta_2(q_input)
+            min_q = min.(q_val_1, q_val_2)
 
-            q1 = q_val_1[1]
-            q2 = q_val_2[1]
-
-            y = r_batch .+ GAMMA * min.(q1, q2)                
+            y = r_batch .+ GAMMA .* not_done .* min_q
 
             online_q_input = vcat(s_batch, a_batch)
             q_online_val_1 = q_theta_1(online_q_input)
             q_online_val_2 = q_theta_2(online_q_input)
 
-            sum_q_online_1 = (1 / N_SAMPLES) * sum((y - q_online_val_1) .^ 2)
-            sum_q_online_2 = (1 / N_SAMPLES) * sum((y - q_online_val_2) .^ 2)
-            
-            if (sum_q_online_1 < sum_q_online_2)
-                q_theta_2 = deepcopy(q_theta_1)
-            else
-                q_theta_1 = deepcopy(q_theta_2)
+            loss1, back1 = Flux.withgradient(q_theta_1) do model
+                pred = model(vcat(s_batch, a_batch))
+                mean((pred .- y).^2)
             end
 
+            Flux.update!(critic_state1, q_theta_1, back1[1])
+
+            loss2, back2 = Flux.withgradient(q_theta_2) do model
+                pred = model(vcat(s_batch, a_batch))
+                mean((pred .- y).^2)
+            end
+            
+            Flux.update!(critic_state2, q_theta_2, back2[1])
+
             if t % D == 0
-                # actor_loss, back = Flux.pullback(() -> begin
-                    # a_pred = actor(s_batch)
-                    # q_val = q_theta_1(vcat(s_batch, a_pred))
-                    # -mean(q_val)
-                # end, Flux.params(actor))
-                
                 actor_loss, back = Flux.withgradient(actor) do model
                     a_pred = model(s_batch)
                     q_val = q_theta_1(vcat(s_batch, a_pred))
@@ -154,7 +155,6 @@ function main()
 
                 push!(episode_loss, actor_loss)
                 grads = back[1]
-                # Flux.Optimise.update!(opt, Flux.params(actor), grads)
                 Flux.update!(opt_state, actor, grads)
 
                 soft_update!(target_q_theta_1, q_theta_1)
@@ -165,9 +165,13 @@ function main()
             t += 1
 
         end
-        push!(losses, mean(episode_loss))
-        if i % 1 == 0
-            i_loss = losses[i]
+
+        if length(episode_loss) != 0 
+            push!(losses, mean(episode_loss))
+        end
+
+        if i % 1 == 0 && length(losses) > 0 && i > 1
+            i_loss = losses[i - 1]
             println("Episode: $i, Loss: $i_loss, Reward: $total_reward")
         end
     end
