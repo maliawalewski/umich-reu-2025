@@ -44,22 +44,3 @@ function in_action_space(action::Vector{Float32}, env::Environment)
     return in_state_space(action .+ env.state, env) && norm(action) <= env.delta_noise
 end
 
-
-
-
-
-function action_space(env::Environment)
-
-    state = state(env)
-    action_space = zeros(Float32, env.numVars)
-    for i in 1:env.numVars
-        if -env.delta_noise + state[i] > 0
-            action_space[i] = (-env.delta_noise + state[i]) : (env.delta_noise + state[i]) #returns vector of ranges for next action
-        end
-    end
-    return action_space 
-end
-
-
-
-
