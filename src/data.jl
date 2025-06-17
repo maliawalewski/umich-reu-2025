@@ -20,7 +20,7 @@ function generate_ideal(;
 
     for _ = 1:num_polynomials
         terms = []
-        num_terms = rand(1:1)
+        num_terms = rand(1:max_terms)
         for _ = 1:num_terms
             coeff = rand(field)
             exponents = rand(0:max_degree, num_variables)
