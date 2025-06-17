@@ -7,23 +7,44 @@
 # act!(env::YourEnv, action)
 
 using Groebner
+include("data.jl")
 
 struct Environment 
     numVars::Int
     delta_noise::Float32
     state::Vector{Float32}
     reward::Float32
-end 
+    ideal::Vector{Any}
+end
+
+function Environment(numVars::Int, delta_noise::Float32)
+    @assert numVars > 0 "Number of variables must be greater than 0."
+    @assert delta_noise >= 0f0 "Delta noise must be non-negative."
+
+    state = zeros(Float32, numVars)
+    # state /= sum(state)  # Normalize to ensure it sums to 1
+    return Environment(numVars, delta_noise, state, 0f0, [])
+end
+
+function fill_ideal(env::Environment, num_polynomials::Int, max_degree::Int, max_terms::Int)
+    env.ideal = generate_ideal(
+        num_polynomials=num_polynomials,
+        num_variables=env.numVars,
+        max_degree=max_degree,
+        max_terms=max_terms
+    )
+end
 
 function act!(env::Environment, action::Vector{Float32})
-    @assert action in action_space(env) "Action must be within the action space of the environment."
+    # @assert action in_action_space(env) "Action must be within the action space of the environment."
 
     weight_vector = env.state .+ action
     order = WeightedOrdering(weight_vector)
-    polynomials = generate_ideal()
-    trace, basis = groebner_learn(polynomials, ordering=order)
-
+    
+    trace, basis = groebner_learn(env.ideal, ordering=order)
     env.state = weight_vector
+    env.reward = reward(trace)
+    return basis
 end
 
 function reward(trace::Groebner.WrappedTrace)
@@ -55,4 +76,9 @@ end
 function in_action_space(action::Vector{Float32}, env::Environment)
     return in_state_space(action .+ env.state, env) && norm(action) <= env.delta_noise
 end
+
+# function is_terminated(env::Environment)
+
+# end
+
 
