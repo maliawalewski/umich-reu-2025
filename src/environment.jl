@@ -40,9 +40,10 @@ function fill_ideal(env::Environment, num_polynomials::Int, max_degree::Int, max
 end
 
 function act!(env::Environment, action::Vector{Float32})
-    # @assert action in_action_space(env) "Action must be within the action space of the environment."
+    @assert in_action_space(action, env) "Action must be a valid state and close enough to current state."
 
-    weight_vector = env.state .+ action
+    # weight_vector = env.state .+ action
+    weight_vector = action 
     order = WeightedOrdering(weight_vector)
 
     trace, basis = groebner_learn(env.ideal, ordering = order)
@@ -53,14 +54,23 @@ function act!(env::Environment, action::Vector{Float32})
     return basis
 end
 
-function in_action_space(action::Vector{Float32}, env::Environment)
-    # @assert sum(action) < 1e-6 "Action vector must sum to 0."
-    # @assert all(action .>= -env.state) "Sum of action and state must be non-negative."
-    # @assert all(action .<= env.delta_noise) "Action must be within the delta noise bounds."
+function make_valid_action(raw_action::Vector{Float32}, env::Environment)
+    # Takes the output of the NN and makes it a valid action
+    min_allowed = max.(env.state .- env.delta_noise, 0f0)
+    max_allowed = env.state .+ env.delta_noise
+    clamped_action = clamp.(raw_action, min_allowed, max_allowed)
+    println("Clamped action: ", clamped_action)
 
-    return sum(action) < 1e-6 &&
-           all(action .>= -env.state) &&
-           all(action .<= env.delta_noise)
+    action = clamped_action ./ sum(clamped_action)  # Normalize action to ensure it sums to 1
+    return action 
+end
+
+function in_action_space(action::Vector{Float32}, env::Environment)
+    # Checks if action is a valid state and that it is not moving too far from the current state
+    return in_state_space(action, env) && all(abs.(action .- env.state) .<= env.delta_noise)
+    # return sum(action) < 1e-6 &&
+    #        all(action .>= -env.state) &&
+    #        all(action .<= env.delta_noise) 
 end
 
 function reward(trace::Groebner.WrappedTrace)
@@ -81,7 +91,7 @@ end
 function in_state_space(x::Vector{Float32}, env::Environment)
     # Checks if vector is within state space 
     @assert length(x) == env.numVars "State vector must have the same number of variables as the environment."
-    return all(x .>= 0.0f0) && abs(sum(x) - 1.0f0) < 1e-6
+    return all(x .>= 0.0f0) && abs(sum(x) - 1.0f0) < 1e-6 # vector sums to 1 and all elements are non-negative
 end
 
 function state(env::Environment)

@@ -4,7 +4,7 @@ include("data.jl")
 
 function main()
     num_vars = 3
-    delta_noise = 1.0f0
+    delta_noise = 0.1f0
     env = init_environment(numVars = num_vars, delta_noise = delta_noise)
     fill_ideal(env, 5, 3, 10, 100)
 
@@ -12,8 +12,8 @@ function main()
     println("Ideal: ", env.ideal)
 
     # Example action
-    action = [1.0f0, 2.0f0, 3.0f0]
-    action .-= mean(action)  # Normalize action to ensure it sums to 0
+    raw_action = [1.0f0, 2.0f0, 3.0f0]
+    action = make_valid_action(raw_action, env)
     println("Action: ", action)
 
     if in_action_space(action, env)
