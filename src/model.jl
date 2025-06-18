@@ -6,10 +6,9 @@ using Optimisers
 using Plots
 include("environment.jl")
 
-env = init_enviroment(numVars = 3, delta_noise = 0.1f0)
 
 CAPACITY = 1_000_000
-EPISODES = 1000
+EPISODES = 1000 #number of ideals 
 N_SAMPLES = 256
 GAMMA = 0.99
 TAU = 0.005
@@ -21,68 +20,57 @@ struct Transition
     s::Vector{Float32}
     a::Float32{Float32}
     r::Float32
-    next_s::Union{Vector{Float32},Nothing}
+    s_next::Union{Vector{Float32},Nothing}
 end
 
-function soft_update!(target, policy)
-    for (tp, pp) in zip(Flux.params(target), Flux.params(policy))
-        tp .= (1 - TAU) * tp .+ TAU * pp
-    end
+struct Actor
+    actor::Flux.Chain
+    actor.actor_target::Flux.Chain
+    actor_opt_state::Optimisers.OptimiserState
 end
 
-function plot_pendulum(env::PendulumEnv; kwargs...)
-    s = state(env)
-    cosθ, sinθ, θ̇ = s
 
-    θ = atan(sinθ, cosθ)
-    l = 1.0
+struct Critics
+    critic_1::Flux.Chain
+    critic_2::Flux.Chain
 
-    x = l * sin(θ)
-    y = -l * cos(θ)
+    critic_1_target::Flux.Chain
+    critic_2_target::Flux.Chain
 
-    plot(
-        xlims = (-l - 0.2, l + 0.2),
-        ylims = (-l - 0.2, l + 0.2),
-        aspect_ratio = :equal,
-        legend = false,
-        title = "Pendulum",
-        size = (300, 300),
-        background_color = :white,
-        grid = false,
-        framestyle = :none,
-    )
-
-    plot!([0, x], [0, y]; lw = 3, color = :black)
-    scatter!([x], [y]; markersize = 10, color = :red)
-
-    gui()
+    critic_1_opt_state::Optimisers.OptimiserState
+    critic_2_opt_state::Optimisers.OptimiserState
 end
 
-function main()
-    actor = Flux.Chain(Dense(3, 128, relu), Dense(128, 128, relu), Dense(128, 1, tanh))
+function build_td3_model(env::Environment)
+    actor = Flux.Chain(Dense(env.numVars, 128, relu), Dense(128, 128, relu), Dense(128, env.numVars, tanh)) # TODO fix tanh output to match action space
+    critic_1 = Flux.Chain(Dense(2 * env.numVars, 128, relu), Dense(128, 128, relu), Dense(128, 1))
+    critic_2 = Flux.Chain(Dense(2 * env.numVars, 128, relu), Dense(128, 128, relu), Dense(128, 1))
 
-    q_theta_1 = Flux.Chain(Dense(4, 128, relu), Dense(128, 128, relu), Dense(128, 1))
-    q_theta_2 = Flux.Chain(Dense(4, 128, relu), Dense(128, 128, relu), Dense(128, 1))
+    actor.actor_target = deepcopy(actor)
+    critic_1_target = deepcopy(critic_1)
+    critic_2_target = deepcopy(critic_2)
 
-    target_actor = deepcopy(actor)
-    target_q_theta_1 = deepcopy(q_theta_1)
-    target_q_theta_2 = deepcopy(q_theta_2)
+    actor_opt = ADAM(LR)
+    actor_opt_state = Flux.setup(actor_opt, actor)
 
-    opt = ADAM(LR)
-    opt_state = Flux.setup(opt, actor)
+    critic_1_opt = ADAM(LR)
+    critic_2_opt = ADAM(LR)
 
-    critic_opt1 = ADAM(LR)
-    critic_opt2 = ADAM(LR)
+    critic_1_opt_state = Flux.setup(critic_1_opt, critic_1)
+    critic_2_opt_state = Flux.setup(critic_2_opt, critic_2)
+    
+    actor_struct = Actor(actor, actor.actor_target, actor_opt_state)
+    critic_struct = Critics(critic_1, critic_2, critic_1_target, critic_2_target, critic_1_opt_state, critic_2_opt_state)
 
-    critic_state1 = Flux.setup(critic_opt1, q_theta_1)
-    critic_state2 = Flux.setup(critic_opt2, q_theta_2)
+    return actor_struct, critic_struct
+end
+
+function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buffer::CircularBuffer{Transition})
 
     losses = []
 
-    replay_buffer = CircularBuffer{Transition}(CAPACITY)
-
     for i = 1:EPISODES
-        ReinforcementLearning.reset!(env)
+        reset!(env)
         s = Float32.(state(env))
         done = false
         total_reward = 0.0f0
@@ -91,20 +79,19 @@ function main()
         episode_loss = []
         while !done
             epsilon = randn() * STD
-            action = 2.0f0 * actor(s)[1] + epsilon
-            action = clamp(action, -2.0f0, 2.0f0)
+            action = actor.actor(s) .+ epsilon
+            action = make_valid_action(action, env)
 
             act!(env, action)
-            plot_pendulum(env)
 
             s_next = Float32.(state(env))
             r = Float32(reward(env))
             done = is_terminated(env)
-            next_s = done ? nothing : s_next
+            s_next = done ? nothing : s_next
 
-            push!(replay_buffer, Transition(s, action, r, next_s))
+            push!(replay_buffer, Transition(s, action, r, s_next))
 
-            s = next_s === nothing ? s : next_s
+            s = s_next === nothing ? s : s_next
             total_reward += r
 
             if length(replay_buffer) < N_SAMPLES
@@ -117,53 +104,49 @@ function main()
             r_batch = hcat([b.r for b in batch]...)
 
             next_s_batch = hcat(
-                [b.next_s !== nothing ? b.next_s : zeros(Float32, 3) for b in batch]...,
+                [b.s_next !== nothing ? b.s_next : zeros(Float32, 3) for b in batch]...,
             )
-            not_done = reshape(Float32.(getfield.(batch, :next_s) .!== nothing), 1, :)
+            not_done = reshape(Float32.(getfield.(batch, :s_next) .!== nothing), 1, :)
 
             epsilon = clamp.(randn(1, N_SAMPLES) * STD, -0.5f0, 0.5f0)
             target_action =
-                clamp.(2.0f0 * target_actor(next_s_batch) .+ epsilon, -2.0f0, 2.0f0)
+                clamp.(2.0f0 * actor.actor_target(next_s_batch) .+ epsilon, -2.0f0, 2.0f0)
 
-            q_val_1 = target_q_theta_1(vcat(next_s_batch, target_action))
-            q_val_2 = target_q_theta_2(vcat(next_s_batch, target_action))
+            critic_1_target_val = critic.critic_1_target(vcat(next_s_batch, target_action))
+            critic_2_target_val = critic.critic_2_target(vcat(next_s_batch, target_action))
 
-            min_q = min.(q_val_1, q_val_2)
+            min_q = min.(critic_1_target_val, critic_2_target_val)
 
             y = r_batch .+ GAMMA .* not_done .* min_q
 
-            online_q_input = vcat(s_batch, a_batch)
-            q_online_val_1 = q_theta_1(online_q_input)
-            q_online_val_2 = q_theta_2(online_q_input)
-
-            loss1, back1 = Flux.withgradient(q_theta_1) do model
+            loss1, back1 = Flux.withgradient(critic.critic_1) do model
                 pred = model(vcat(s_batch, a_batch))
                 mean((pred .- y) .^ 2)
             end
 
-            Flux.update!(critic_state1, q_theta_1, back1[1])
+            Flux.update!(critic.critic_1_opt_state, critic.critic_1, back1[1])
 
-            loss2, back2 = Flux.withgradient(q_theta_2) do model
+            loss2, back2 = Flux.withgradient(critic.critic_2) do model
                 pred = model(vcat(s_batch, a_batch))
                 mean((pred .- y) .^ 2)
             end
 
-            Flux.update!(critic_state2, q_theta_2, back2[1])
+            Flux.update!(critic.critic_2_opt_state, critic.critic_2, back2[1])
 
             if t % D == 0
-                actor_loss, back = Flux.withgradient(actor) do model
+                actor_loss, back = Flux.withgradient(actor.actor) do model
                     a_pred = model(s_batch)
-                    q_val = q_theta_1(vcat(s_batch, a_pred))
+                    q_val = critic.critic_1(vcat(s_batch, a_pred))
                     -mean(q_val)
                 end
 
                 push!(episode_loss, actor_loss)
                 grads = back[1]
-                Flux.update!(opt_state, actor, grads)
+                Flux.update!(actor.actor_opt_state, actor.actor, grads)
 
-                soft_update!(target_q_theta_1, q_theta_1)
-                soft_update!(target_q_theta_2, q_theta_2)
-                soft_update!(target_actor, actor)
+                soft_update!(critic.critic_1_target, critic.critic_1)
+                soft_update!(critic.critic_2_target, critic.critic_2)
+                soft_update!(actor.actor_target, actor.actor)
             end
 
             t += 1
@@ -180,21 +163,10 @@ function main()
         end
     end
 
-    episodes = 1:length(losses)
-    p = plot(
-        episodes,
-        losses,
-        title = "Loss/t",
-        xlabel = "Episode",
-        ylabel = "Loss",
-        label = "Loss",
-        lw = 2,
-        marker = :circle,
-        legend = :topright,
-    )
-
-    savefig(p, "loss_plot.png")
-
 end
 
-main()
+function soft_update!(target, policy)
+    for (tp, pp) in zip(Flux.params(target), Flux.params(policy))
+        tp .= (1 - TAU) * tp .+ TAU * pp
+    end
+end
