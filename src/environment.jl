@@ -30,21 +30,32 @@ function init_state(numVars::Int)
 end
 
 function fill_ideal(env::Environment, num_polynomials::Int, max_degree::Int, max_terms::Int, max_attempts::Int)
-    env.ideal = generate_ideal(
+    env.ideal, vars = generate_ideal(
         num_polynomials = num_polynomials,
         num_variables = env.numVars,
         max_degree = max_degree,
         num_terms = max_terms,
         max_attempts = max_attempts
     )
+    return vars
 end
 
+<<<<<<< Updated upstream
 function act!(env::Environment, action::Vector{Float32})
     @assert in_action_space(action, env) "Action must be a valid state and close enough to current state."
 
     # weight_vector = env.state .+ action
     weight_vector = action 
     order = WeightedOrdering(weight_vector)
+=======
+
+# TO-DO: Fix weight vectors to Int and decide on consistent rounding
+function act!(env::Environment, action::Vector{Float32}, vars::Vector{Any})
+    # @assert action in_action_space(env) "Action must be within the action space of the environment."
+
+    weight_vector = env.state .+ action
+    order = WeightedOrdering((v => w for (v, w) in zip(vars, weight_vector))...)
+>>>>>>> Stashed changes
 
     trace, basis = groebner_learn(env.ideal, ordering = order)
     env.state = weight_vector
@@ -54,12 +65,19 @@ function act!(env::Environment, action::Vector{Float32})
     return basis
 end
 
+<<<<<<< Updated upstream
 function make_valid_action(raw_action::Vector{Float32}, env::Environment)
     # Takes the output of the NN and makes it a valid action
     min_allowed = max.(env.state .- env.delta_noise, 0f0)
     max_allowed = env.state .+ env.delta_noise
     clamped_action = clamp.(raw_action, min_allowed, max_allowed)
     println("Clamped action: ", clamped_action)
+=======
+function in_action_space(action::Vector{Float32}, env::Environment)
+    @assert sum(action) < 1e-6 "Action vector must sum to 0."
+    @assert all(action .>= -env.state) "Sum of action and state must be non-negative."
+    @assert all(action .<= env.delta_noise) "Action must be within the delta noise bounds."
+>>>>>>> Stashed changes
 
     action = clamped_action ./ sum(clamped_action)  # Normalize action to ensure it sums to 1
     return action 
