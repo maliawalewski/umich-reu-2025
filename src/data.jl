@@ -5,8 +5,8 @@ using AbstractAlgebra
 function generate_ideal(;
     num_polynomials::Integer = 3,
     num_variables::Integer = 3,
-    max_degree::Integer = 8,
-    num_terms::Integer = 6,
+    max_degree::Integer = 4,
+    num_terms::Integer = 3,
     max_attempts::Integer = 100,
 )
     @assert num_polynomials > 0 "num_polynomials must be greater than 0"
@@ -17,12 +17,15 @@ function generate_ideal(;
     field = GF(32003)
     ring, vars = polynomial_ring(field, ["x_" * string(i) for i = 1:num_variables])
 
-    polynomials = []
+    println("type: ")
+    println(typeof(vars[1]))
+
+    polynomials = Vector{typeof(vars[1])}()
     used_polys = Set{UInt64}()
     for _ = 1:num_polynomials
-        p_attempts = 0 
+        p_attempts = 0
         while true
-            used_exponents = Set{NTuple{num_variables, Int}}()
+            used_exponents = Set{NTuple{num_variables,Int}}()
             terms = []
             for _ = 1:num_terms
                 attempts = 0
@@ -31,7 +34,8 @@ function generate_ideal(;
                     expt_key = Tuple(exponents)
                     if !(expt_key in used_exponents)
                         push!(used_exponents, expt_key)
-                        monomial = rand(field) * prod(vars[i]^exponents[i] for i in 1:num_variables)
+                        monomial =
+                            rand(field) * prod(vars[i]^exponents[i] for i = 1:num_variables)
                         push!(terms, monomial)
                         break
                     end
@@ -51,22 +55,21 @@ function generate_ideal(;
         end
     end
 
-    # TO-DO: Figure out type casting and why we are getting error with Vector{Any}
-    return convert(Vector{Any}, polynomials), convert(Vector{Any}, vars)
+    return polynomials, vars
 end
 
 function generate_data(;
     num_ideals::Integer = 1000,
     num_polynomials::Integer = 3,
     num_variables::Integer = 3,
-    max_degree::Integer = 8,
-    num_terms::Integer = 6,
+    max_degree::Integer = 4,
+    num_terms::Integer = 3,
     max_attempts::Integer = 100,
 )
     @assert num_ideals > 0 "num_ideals must be greater than 0"
 
     ideals = []
-    variables = nothing 
+    variables = nothing
     for _ = 1:num_ideals
         ideal, vars = generate_ideal(
             num_polynomials = num_polynomials,

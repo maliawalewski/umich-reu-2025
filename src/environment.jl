@@ -1,4 +1,5 @@
 using Groebner
+using AbstractAlgebra
 include("data.jl")
 
 mutable struct Environment
@@ -6,7 +7,8 @@ mutable struct Environment
     delta_noise::Float32
     state::Vector{Float32}
     reward::Float32
-    ideal::Vector{Any}
+    ideal::Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}
+    variables::Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}
     is_terminated::Bool
 end
 
@@ -14,14 +16,19 @@ function init_environment(;
     numVars::Int = 1,
     delta_noise::Float32 = 0.001f0,
     reward::Float32 = 0.0f0,
-    ideal::Vector{Any} = [],
+    ideal::Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}} = Vector{
+        AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}},
+    }(),
+    vars::Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}} = Vector{
+        AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}},
+    }(),
     is_terminated::Bool = false,
 )
     @assert numVars > 0 "Number of variables must be greater than 0."
     @assert delta_noise >= 0.0f0 "Delta noise must be non-negative."
 
     state = init_state(numVars)
-    return Environment(numVars, delta_noise, state, reward, ideal, is_terminated)
+    return Environment(numVars, delta_noise, state, reward, ideal, vars, is_terminated)
 end
 
 function init_state(numVars::Int)
@@ -29,27 +36,36 @@ function init_state(numVars::Int)
     return epsilon_vector ./ sum(epsilon_vector)  # Normalize to ensure it sums to 1
 end
 
-function fill_ideal(env::Environment, num_polynomials::Int, max_degree::Int, max_terms::Int, max_attempts::Int)
-    env.ideal, vars = generate_ideal(
+function fill_ideal(
+    env::Environment,
+    num_polynomials::Int,
+    max_degree::Int,
+    max_terms::Int,
+    max_attempts::Int,
+)
+    polys, vars = generate_ideal(
         num_polynomials = num_polynomials,
         num_variables = env.numVars,
         max_degree = max_degree,
         num_terms = max_terms,
-        max_attempts = max_attempts
+        max_attempts = max_attempts,
     )
-    return vars
+    env.ideal = polys
+    env.variables = vars
 end
 
 function act!(env::Environment, action::Vector{Float32})
     @assert in_action_space(action, env) "Action must be a valid state and close enough to current state."
 
-    # weight_vector = env.state .+ action
-    weight_vector = action 
-    order = WeightedOrdering(weight_vector)
+    action = [1, 2, 3]
+    weights = zip(env.variables, action)
+    order = WeightedOrdering(weights...)
 
     trace, basis = groebner_learn(env.ideal, ordering = order)
-    env.state = weight_vector
+    env.state = action
     env.reward = reward(trace)
+    println("reward: ")
+    println(env.reward)
     env.is_terminated = true
 
     return basis
@@ -57,13 +73,13 @@ end
 
 function make_valid_action(raw_action::Vector{Float32}, env::Environment)
     # Takes the output of the NN and makes it a valid action
-    min_allowed = max.(env.state .- env.delta_noise, 0f0)
+    min_allowed = max.(env.state .- env.delta_noise, 0.0f0)
     max_allowed = env.state .+ env.delta_noise
     clamped_action = clamp.(raw_action, min_allowed, max_allowed)
     println("Clamped action: ", clamped_action)
 
     action = clamped_action ./ sum(clamped_action)  # Normalize action to ensure it sums to 1
-    return action 
+    return action
 end
 
 function in_action_space(action::Vector{Float32}, env::Environment)
