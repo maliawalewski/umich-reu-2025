@@ -1,8 +1,9 @@
 using Groebner, AbstractAlgebra, Statistics
 include("environment.jl")
 include("data.jl")
+include("model.jl")
 
-function main()
+function test_main()
     num_vars = 3
     delta_noise = 0.1f0
     env = init_environment(numVars = num_vars, delta_noise = delta_noise)
@@ -28,4 +29,12 @@ function main()
     println("Current state: ", state(env))
 end
 
-main()
+function main()
+    num_vars = 3
+    delta_noise = 0.1f0
+    env = init_environment(numVars = num_vars, delta_noise = delta_noise)
+    actor_struct, critic_struct = built_td3_model(env)
+
+    
+
+end
