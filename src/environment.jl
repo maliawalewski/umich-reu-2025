@@ -1,11 +1,3 @@
-# action_space(env::YourEnv)
-# state(env::YourEnv)
-# state_space(env::YourEnv)
-# reward(env::YourEnv)
-# is_terminated(env::YourEnv)
-# reset!(env::YourEnv)
-# act!(env::YourEnv, action)
-
 using Groebner
 include("data.jl")
 
@@ -15,15 +7,17 @@ struct Environment
     state::Vector{Float32}
     reward::Float32
     ideal::Vector{Any}
+    is_terminated::Bool
 end
 
 function Environment(numVars::Int, delta_noise::Float32)
     @assert numVars > 0 "Number of variables must be greater than 0."
     @assert delta_noise >= 0f0 "Delta noise must be non-negative."
 
-    state = zeros(Float32, numVars)
-    # state /= sum(state)  # Normalize to ensure it sums to 1
-    return Environment(numVars, delta_noise, state, 0f0, [])
+    # Initialize the state with 1/numVars + noise for each variable
+    epsilon_vector = fill(rand(Float32), env.numVars)
+    state = epsilon_vector ./ sum(epsilon_vector) # Normalize to ensure it sums to 1
+    return Environment(numVars, delta_noise, state, 0f0, [], false)
 end
 
 function fill_ideal(env::Environment, num_polynomials::Int, max_degree::Int, max_terms::Int)
@@ -47,6 +41,10 @@ function act!(env::Environment, action::Vector{Float32})
     return basis
 end
 
+function in_action_space(action::Vector{Float32}, env::Environment)
+    return in_state_space(action .+ env.state, env) && norm(action) <= env.delta_noise
+end
+
 function reward(trace::Groebner.WrappedTrace)
     @assert length(trace.recorded_traces) == 1 "WrappedTrace struct is tracking multiple traces"
     total_reward = 0
@@ -62,8 +60,8 @@ function reward(trace::Groebner.WrappedTrace)
     return -total_reward
 end
 
-#checks if vector is within state space 
 function in_state_space(x::Vector{Float32}, env::Environment)
+    #checks if vector is within state space 
     @assert length(x) == env.numVars "State vector must have the same number of variables as the environment."
     return all(x .>= 0f0) && abs(sum(x) - 1f0) < 1e-6
 end
@@ -72,12 +70,16 @@ function state(env::Environment)
      return env.state
 end
 
-function in_action_space(action::Vector{Float32}, env::Environment)
-    return in_state_space(action .+ env.state, env) && norm(action) <= env.delta_noise
+function is_terminated(env::Environment)
+    # Terminates when basis has been computed
+    return env.is_terminated 
 end
 
-# function is_terminated(env::Environment)
-
-# end
-
+function reset!(env::Environment)
+    # Reset the environment to its initial state
+    epsilon_vector = fill(rand(Float32), env.numVars)
+    env.state = epsilon_vector ./ sum(epsilon_vector)  # Normalize to ensure it sums to 1
+    env.reward = 0f0
+    env.ideal = []
+end
 
