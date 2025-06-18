@@ -35,6 +35,8 @@ function main()
     env = init_environment(numVars = num_vars, delta_noise = delta_noise)
     actor_struct, critic_struct = built_td3_model(env)
 
-    
+    replay_buffer = CircularBuffer{Transition}(CAPACITY)
+
+    train_td3!(actor_struct, critic_struct, env, replay_buffer)
 
 end

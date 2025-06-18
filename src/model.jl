@@ -24,7 +24,7 @@ end
 
 struct Actor
     actor::Flux.Chain
-    actor_target::Flux.Chain
+    actor.actor_target::Flux.Chain
     actor_opt_state::Optimisers.OptimiserState
 end
 
@@ -45,7 +45,7 @@ function build_td3_model(env::Environment)
     critic_1 = Flux.Chain(Dense(2 * env.numVars, 128, relu), Dense(128, 128, relu), Dense(128, 1))
     critic_2 = Flux.Chain(Dense(2 * env.numVars, 128, relu), Dense(128, 128, relu), Dense(128, 1))
 
-    actor_target = deepcopy(actor)
+    actor.actor_target = deepcopy(actor)
     critic_1_target = deepcopy(critic_1)
     critic_2_target = deepcopy(critic_2)
 
@@ -58,25 +58,15 @@ function build_td3_model(env::Environment)
     critic_1_opt_state = Flux.setup(critic_1_opt, critic_1)
     critic_2_opt_state = Flux.setup(critic_2_opt, critic_2)
     
-    actor_struct = Actor(actor, actor_target, actor_opt_state)
+    actor_struct = Actor(actor, actor.actor_target, actor_opt_state)
     critic_struct = Critics(critic_1, critic_2, critic_1_target, critic_2_target, critic_1_opt_state, critic_2_opt_state)
 
     return actor_struct, critic_struct
 end
 
+function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buffer::CircularBuffer{Transition})
 
-
-function soft_update!(target, policy)
-    for (tp, pp) in zip(Flux.params(target), Flux.params(policy))
-        tp .= (1 - TAU) * tp .+ TAU * pp
-    end
-end
-
-function main()
-    
     losses = []
-
-    replay_buffer = CircularBuffer{Transition}(CAPACITY)
 
     for i = 1:EPISODES
         reset!(env)
@@ -88,7 +78,7 @@ function main()
         episode_loss = []
         while !done
             epsilon = randn() * STD
-            action = actor(s) .+ epsilon
+            action = actor.actor(s) .+ epsilon
             action = make_valid_action(action, env)
 
             act!(env, action)
@@ -119,43 +109,43 @@ function main()
 
             epsilon = clamp.(randn(1, N_SAMPLES) * STD, -0.5f0, 0.5f0)
             target_action =
-                clamp.(2.0f0 * actor_target(next_s_batch) .+ epsilon, -2.0f0, 2.0f0)
+                clamp.(2.0f0 * actor.actor_target(next_s_batch) .+ epsilon, -2.0f0, 2.0f0)
 
-            critic_1_target_val = critic_1_target(vcat(next_s_batch, target_action))
-            critic_2_target_val = critic_2_target(vcat(next_s_batch, target_action))
+            critic_1_target_val = critic.critic_1_target(vcat(next_s_batch, target_action))
+            critic_2_target_val = critic.critic_2_target(vcat(next_s_batch, target_action))
 
             min_q = min.(critic_1_target_val, critic_2_target_val)
 
             y = r_batch .+ GAMMA .* not_done .* min_q
 
-            loss1, back1 = Flux.withgradient(critic_1) do model
+            loss1, back1 = Flux.withgradient(critic.critic_1) do model
                 pred = model(vcat(s_batch, a_batch))
                 mean((pred .- y) .^ 2)
             end
 
-            Flux.update!(critic_1_opt_state, critic_1, back1[1])
+            Flux.update!(critic.critic_1_opt_state, critic.critic_1, back1[1])
 
-            loss2, back2 = Flux.withgradient(critic_2) do model
+            loss2, back2 = Flux.withgradient(critic.critic_2) do model
                 pred = model(vcat(s_batch, a_batch))
                 mean((pred .- y) .^ 2)
             end
 
-            Flux.update!(critic_2_opt_state, critic_2, back2[1])
+            Flux.update!(critic.critic_2_opt_state, critic.critic_2, back2[1])
 
             if t % D == 0
-                actor_loss, back = Flux.withgradient(actor) do model
+                actor_loss, back = Flux.withgradient(actor.actor) do model
                     a_pred = model(s_batch)
-                    q_val = critic_1(vcat(s_batch, a_pred))
+                    q_val = critic.critic_1(vcat(s_batch, a_pred))
                     -mean(q_val)
                 end
 
                 push!(episode_loss, actor_loss)
                 grads = back[1]
-                Flux.update!(opt_state, actor, grads)
+                Flux.update!(actor.actor_opt_state, actor.actor, grads)
 
-                soft_update!(critic_1_target, critic_1)
-                soft_update!(critic_2_target, critic_2)
-                soft_update!(actor_target, actor)
+                soft_update!(critic.critic_1_target, critic.critic_1)
+                soft_update!(critic.critic_2_target, critic.critic_2)
+                soft_update!(actor.actor_target, actor.actor)
             end
 
             t += 1
@@ -172,21 +162,10 @@ function main()
         end
     end
 
-    episodes = 1:length(losses)
-    p = plot(
-        episodes,
-        losses,
-        title = "Loss/t",
-        xlabel = "Episode",
-        ylabel = "Loss",
-        label = "Loss",
-        lw = 2,
-        marker = :circle,
-        legend = :topright,
-    )
-
-    savefig(p, "loss_plot.png")
-
 end
 
-main()
+function soft_update!(target, policy)
+    for (tp, pp) in zip(Flux.params(target), Flux.params(policy))
+        tp .= (1 - TAU) * tp .+ TAU * pp
+    end
+end
