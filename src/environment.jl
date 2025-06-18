@@ -49,14 +49,13 @@ end
 
 function reward(trace::Groebner.WrappedTrace)
     @assert length(trace.recorded_traces) == 1 "WrappedTrace struct is tracking multiple traces"
+    total_reward = 0
     for (k, t) in trace.recorded_traces
-        total_reward = 0
-        println(length(t.matrix_infos))
-        for iter in 1:length(t.matrix_infos)
-            n_cols = t.matrix_infos[iter][3]
-            pair_degree = t.critical_pair_sequence[iter][1]
-            pair_count = t.critical_pair_sequence[iter][2]
-
+        @assert length(t.critical_pair_sequence) == (length(t.matrix_infos) - 1) "length of critical_pair_sequence and matrix_infos do not match"
+        for i in 1:length(t.critical_pair_sequence)
+            n_cols = t.matrix_infos[i + 1][3]
+            pair_degree = t.critical_pair_sequence[i][1]
+            pair_count = t.critical_pair_sequence[i][2]
             total_reward += (n_cols * pair_count * log(pair_degree))
         end
     end

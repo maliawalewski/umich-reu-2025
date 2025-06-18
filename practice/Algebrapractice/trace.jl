@@ -30,5 +30,3 @@ for (k, v) in trace.recorded_traces
     println("Value: ", v)
     println()
 end
-
-println(reward(trace))
