@@ -65,17 +65,18 @@ function generate_data(;
     @assert num_ideals > 0 "num_ideals must be greater than 0"
 
     ideals = []
-
+    variables = nothing 
     for _ = 1:num_ideals
-        ideal = generate_ideal(
+        ideal, vars = generate_ideal(
             num_polynomials = num_polynomials,
             num_variables = num_variables,
             max_degree = max_degree,
             num_terms = num_terms,
             max_attempts = max_attempts,
         )
+        variables = vars
         push!(ideals, ideal)
     end
 
-    return ideals
+    return ideals, variables
 end
