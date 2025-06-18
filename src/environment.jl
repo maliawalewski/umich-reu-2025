@@ -10,16 +10,6 @@ mutable struct Environment
     is_terminated::Bool
 end
 
-# function Environment(numVars::Int, delta_noise::Float32)
-#     @assert numVars > 0 "Number of variables must be greater than 0."
-#     @assert delta_noise >= 0f0 "Delta noise must be non-negative."
-
-#     # Initialize the state with 1/numVars + noise for each variable
-#     epsilon_vector = fill(1 + rand(Float32), numVars)
-#     init_state = epsilon_vector ./ sum(epsilon_vector) # Normalize to ensure it sums to 1
-#     return Environment(numVars, delta_noise, init_state, 0f0, [], false)
-# end
-
 function init_environment(;
     numVars::Int = 1,
     delta_noise::Float32 = 0.001f0,
@@ -39,12 +29,13 @@ function init_state(numVars::Int)
     return epsilon_vector ./ sum(epsilon_vector)  # Normalize to ensure it sums to 1
 end
 
-function fill_ideal(env::Environment, num_polynomials::Int, max_degree::Int, max_terms::Int)
+function fill_ideal(env::Environment, num_polynomials::Int, max_degree::Int, max_terms::Int, max_attempts::Int)
     env.ideal = generate_ideal(
         num_polynomials = num_polynomials,
         num_variables = env.numVars,
         max_degree = max_degree,
-        max_terms = max_terms,
+        num_terms = max_terms,
+        max_attempts = max_attempts
     )
 end
 
@@ -88,7 +79,7 @@ function reward(trace::Groebner.WrappedTrace)
 end
 
 function in_state_space(x::Vector{Float32}, env::Environment)
-    #checks if vector is within state space 
+    # Checks if vector is within state space 
     @assert length(x) == env.numVars "State vector must have the same number of variables as the environment."
     return all(x .>= 0.0f0) && abs(sum(x) - 1.0f0) < 1e-6
 end

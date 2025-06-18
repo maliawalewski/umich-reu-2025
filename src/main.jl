@@ -6,7 +6,7 @@ function main()
     num_vars = 3
     delta_noise = 1.0f0
     env = init_environment(numVars = num_vars, delta_noise = delta_noise)
-    fill_ideal(env, 5, 3, 10)
+    fill_ideal(env, 5, 3, 10, 100)
 
     println("Initial state: ", state(env))
     println("Ideal: ", env.ideal)
