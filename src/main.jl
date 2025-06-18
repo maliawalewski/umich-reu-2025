@@ -15,13 +15,8 @@ function main()
     end
 
     # Example action
-<<<<<<< Updated upstream
     raw_action = [1.0f0, 2.0f0, 3.0f0]
     action = make_valid_action(raw_action, env)
-=======
-    action = [0.01f0, 0.02f0, 0.03f0]
-    action .-= mean(action)  # Normalize action to ensure it sums to 0
->>>>>>> Stashed changes
     println("Action: ", action)
 
     if in_action_space(action, env)
