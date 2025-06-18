@@ -18,7 +18,7 @@ function generate_ideal(;
     ring, vars = polynomial_ring(field, ["x_" * string(i) for i = 1:num_variables])
 
     polynomials = []
-    used_polys = Set{String}()
+    used_polys = Set{UInt64}()
     for _ = 1:num_polynomials
         p_attempts = 0 
         while true
@@ -40,9 +40,9 @@ function generate_ideal(;
                 end
             end
             polynomial = sum(terms)
-            poly_str = string(polynomial)
-            if !(poly_str in used_polys)
-                push!(used_polys, poly_str)
+            poly_hash = hash(polynomial)
+            if !(poly_hash in used_polys)
+                push!(used_polys, poly_hash)
                 push!(polynomials, polynomial)
                 break
             end
@@ -51,7 +51,7 @@ function generate_ideal(;
         end
     end
 
-    return polynomials
+    return polynomials, vars
 end
 
 function generate_data(;
