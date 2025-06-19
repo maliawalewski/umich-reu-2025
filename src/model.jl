@@ -88,6 +88,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
     for i = 1:EPISODES
         reset!(env)
+        fill_ideal_batch(env, 5, 3, 10, 100) # fill with random ideals
         s = Float32.(state(env))
         done = false
         total_reward = 0.0f0

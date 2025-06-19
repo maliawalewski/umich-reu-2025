@@ -18,10 +18,10 @@ function init_environment(;
     delta_noise::Float32 = 0.001f0,
     reward::Float32 = 0.0f0,
     ideal_batch::Vector{Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}} = Vector{Vector{
-        AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}},
+        AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}
     }}(),
     vars::Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}} = Vector{
-        AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}},
+        AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}
     }(),
     is_terminated::Bool = false,
     max_ideals::Int = 20,
@@ -42,7 +42,7 @@ function fill_ideal_batch(
     env::Environment,
     num_polynomials::Int,
     max_degree::Int,
-    max_terms::Int,
+    num_terms::Int,
     max_attempts::Int,
 )
     ideals, vars = generate_data(
@@ -50,7 +50,7 @@ function fill_ideal_batch(
         num_polynomials = num_polynomials,
         num_variables = env.numVars,
         max_degree = max_degree,
-        num_terms = max_terms,
+        num_terms = num_terms,
         max_attempts = max_attempts,
     )
     env.ideal_batch = ideals
@@ -133,7 +133,7 @@ function reset!(env::Environment)
     # Resets the environment to its initial state
     env.state = init_state(env.numVars)
     env.reward = 0.0f0
-    env.ideal_batch = []
+    env.ideal_batch = 
     env.is_terminated = false
 
     fill_ideal_batch(
