@@ -10,7 +10,7 @@ mutable struct Environment
     ideal_batch::Vector{Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}}
     variables::Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}
     is_terminated::Bool
-    max_ideals::Int
+    num_ideals::Int
 end
 
 function init_environment(;
@@ -24,13 +24,13 @@ function init_environment(;
         AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}
     }(),
     is_terminated::Bool = false,
-    max_ideals::Int = 20,
+    num_ideals::Int = 20,
 )
     @assert numVars > 0 "Number of variables must be greater than 0."
     @assert delta_noise >= 0.0f0 "Delta noise must be non-negative."
 
     state_i = init_state(numVars)
-    return Environment(numVars, delta_noise, state_i, reward, ideal_batch, vars, is_terminated, max_ideals)
+    return Environment(numVars, delta_noise, state_i, reward, ideal_batch, vars, is_terminated, num_ideals)
 end
 
 function init_state(numVars::Int)
@@ -46,7 +46,7 @@ function fill_ideal_batch(
     max_attempts::Int,
 )
     ideals, vars = generate_data(
-        num_ideals = env.max_ideals,
+        num_ideals = env.num_ideals,
         num_polynomials = num_polynomials,
         num_variables = env.numVars,
         max_degree = max_degree,
@@ -135,8 +135,4 @@ function reset!(env::Environment)
     env.reward = 0.0f0
     env.ideal_batch = 
     env.is_terminated = false
-
-    fill_ideal_batch(
-    env, 3, 3, 5, 10,
-    )
 end

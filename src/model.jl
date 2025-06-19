@@ -14,6 +14,13 @@ TAU = 0.005
 LR = 3e-4
 STD = 0.2
 D = 10 # can change 
+ACTION_SCALE = 1e4
+
+# Data parameters (used to generate ideal batch)
+NUM_POLYS = 3
+MAX_DEGREE = 4
+NUM_TERMS = 3
+MAX_ATTEMPTS = 100
 
 struct Transition
     s::Vector{Float32}
@@ -88,7 +95,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
     for i = 1:EPISODES
         reset!(env)
-        fill_ideal_batch(env, 5, 3, 10, 100) # fill with random ideals
+        fill_ideal_batch(env, NUM_POLYS, MAX_DEGREE, NUM_TERMS, MAX_ATTEMPTS) # fill with random ideals
         s = Float32.(state(env))
         done = false
         total_reward = 0.0f0
@@ -100,6 +107,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             action = actor.actor(s) .+ epsilon
             println("action: ", action, " ")
             action = make_valid_action(env, action)
+            action = round.(ACTION_SCALE * action)
 
             act!(env, action)
 
