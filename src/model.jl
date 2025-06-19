@@ -7,14 +7,14 @@ using Plots
 include("environment.jl")
 
 CAPACITY = 1_000_000
-EPISODES = 1000 # we want 10-20 ideals computed in 1 episode 
-N_SAMPLES = 256
+EPISODES = 10000 # we want 10-20 ideals computed in 1 episode 
+N_SAMPLES = 100
 GAMMA = 0.99
 TAU = 0.005
 LR = 3e-4
 STD = 0.2
 D = 10 # can change 
-ACTION_SCALE = 1e4
+
 
 # Data parameters (used to generate ideal batch)
 NUM_POLYS = 3
@@ -66,9 +66,9 @@ end
 
 function build_td3_model(env::Environment)
 
-    actor = Flux.Chain(Dense(env.numVars, 128, relu), Dense(128, 128, relu), Dense(128, env.numVars, tanh)) # TODO fix tanh output to match action space
-    critic_1 = Flux.Chain(Dense(2 * env.numVars, 128, relu), Dense(128, 128, relu), Dense(128, 1))
-    critic_2 = Flux.Chain(Dense(2 * env.numVars, 128, relu), Dense(128, 128, relu), Dense(128, 1))
+    actor = Flux.Chain(Dense(env.numVars, 256, relu), Dense(256, 256, relu), Dense(256, env.numVars, tanh)) # TODO fix tanh output to match action space
+    critic_1 = Flux.Chain(Dense(2 * env.numVars, 256, relu), Dense(256, 256, relu), Dense(256, 1))
+    critic_2 = Flux.Chain(Dense(2 * env.numVars, 256, relu), Dense(256, 256, relu), Dense(256, 1))
 
     actor_target = deepcopy(actor)
     critic_1_target = deepcopy(critic_1)
@@ -92,6 +92,7 @@ end
 function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buffer::CircularBuffer{Transition})
 
     losses = []
+    rewards = []
 
     for i = 1:EPISODES
         reset!(env)
@@ -105,21 +106,18 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         while !done
             epsilon = randn() * STD
             action = Float32.(actor.actor(s) .+ epsilon)
-            println(typeof(action))
-            action = make_valid_action(env, action)
-            action = round.(ACTION_SCALE * action)
 
-            act!(env, action)
-
+            basis = act!(env, action)
             s_next = Float32.(state(env))
-            r = Float32(reward(env))
+            r = Float32(env.reward)
+            push!(rewards, r)
             done = is_terminated(env)
             s_next = done ? nothing : s_next
 
             push!(replay_buffer, Transition(s, action, r, s_next))
 
             s = s_next === nothing ? s : s_next
-            total_reward += r
+            # total_reward += r
 
             if length(replay_buffer) < N_SAMPLES
                 continue
@@ -181,15 +179,38 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         end
 
         if length(episode_loss) != 0
-            push!(losses, mean(episode_loss))
+            avg_loss = mean(episode_loss)
+            push!(losses, avg_loss)
+            if i % 100 == 0
+                println("Episode: $i, Loss: $avg_loss, Reward: ", env.reward)
+                println()
+            end
         end
-
-        if i % 1 == 0 && length(losses) > 0 && i > 1
-            i_loss = losses[i-1]
-            println("Episode: $i, Loss: $i_loss, Reward: $total_reward")
-        end
-
     end
+
+    episodes = 1:length(losses)
+    loss_plot = plot(episodes, losses,
+        title = "Loss plot",
+        xlabel = "Episode",
+        ylabel = "Loss",
+        label = "Loss",
+        lw = 2,
+        marker = :circle,
+        legend = :topright)
+
+    savefig(loss_plot, "loss_plot.png")
+
+    episodes2 = 1:length(rewards)
+    reward_plot = plot(episodes2, rewards,
+        title = "Reward plot",
+        xlabel = "Episode",
+        ylabel = "Reward",
+        label = "Reward",
+        lw = 2,
+        marker = :circle,
+        legend = :topright)
+
+    savefig(reward_plot, "reward_plot.png")
 end
 
 function soft_update!(target, policy)

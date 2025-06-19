@@ -2,11 +2,14 @@ using Groebner
 using AbstractAlgebra
 include("data.jl")
 
+ACTION_SCALE = 1e4
+
+
 mutable struct Environment
     numVars::Int
     delta_noise::Float32
     state::Vector{Float32}
-    reward::Float32
+    reward::Float64
     ideal_batch::Vector{Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}}
     variables::Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}
     is_terminated::Bool
@@ -24,7 +27,7 @@ function init_environment(;
         AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}
     }(),
     is_terminated::Bool = false,
-    num_ideals::Int = 20,
+    num_ideals::Int = 10,
 )
     @assert numVars > 0 "Number of variables must be greater than 0."
     @assert delta_noise >= 0.0f0 "Delta noise must be non-negative."
@@ -57,28 +60,30 @@ function fill_ideal_batch(
     env.variables = vars
 end
 
-function act!(env::Environment, action::Vector{Int})   
-    @assert in_action_space(action, env) "Action must be a valid state and close enough to current state."
+function act!(env::Environment, action::Vector{Float32})   
+    action = make_valid_action(env, action)
+    env.state = action
 
-    # action = [1, 2, 3]
+    action = Int.(round.(ACTION_SCALE * action))
+
     weights = zip(env.variables, action)
     order = WeightedOrdering(weights...)
 
     cur_reward = 0.0f0
     total_reward = 0.0f0
-    basis_vector = Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}()
+    basis_vector = []
 
     for i in 1:length(env.ideal_batch)
         ideal = env.ideal_batch[i]
         trace, basis = groebner_learn(ideal, ordering = order)
 
-        basis_vector = vcat(basis_vector, basis)
+        basis_vector = push!(basis_vector, basis)
         cur_reward = reward(trace)
         total_reward += cur_reward
     end
 
     env.reward = total_reward / length(env.ideal_batch)
-    env.state = action
+    env.is_terminated = true
 
     return basis_vector
 end
@@ -88,10 +93,7 @@ function make_valid_action(env::Environment, raw_action::Vector{Float32})
     min_allowed = max.(env.state .- env.delta_noise, 0.0f0)
     max_allowed = env.state .+ env.delta_noise
     clamped_action = clamp.(raw_action, min_allowed, max_allowed)
-    println("Clamped action: ", clamped_action)
-
     action = clamped_action ./ sum(clamped_action)  # Normalize action to ensure it sums to 1
-
 
     return action
 end
@@ -103,7 +105,7 @@ end
 
 function reward(trace::Groebner.WrappedTrace)
     @assert length(trace.recorded_traces) == 1 "WrappedTrace struct is tracking multiple traces"
-    total_reward = 0
+    total_reward = 0f0
     for (k, t) in trace.recorded_traces
         @assert length(t.critical_pair_sequence) == (length(t.matrix_infos) - 1) "length of critical_pair_sequence and matrix_infos do not match"
         for i = 1:length(t.critical_pair_sequence)
@@ -113,7 +115,7 @@ function reward(trace::Groebner.WrappedTrace)
             total_reward += (n_cols * pair_count * log(pair_degree))
         end
     end
-    return -total_reward
+    return -total_reward / 100f0
 end
 
 function in_state_space(x::Vector{Float32}, env::Environment)

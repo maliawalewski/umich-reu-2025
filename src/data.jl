@@ -16,12 +16,9 @@ function generate_ideal(;
 
     field = GF(32003)
     ring, vars = polynomial_ring(field, ["x_" * string(i) for i = 1:num_variables])
-
-    println("type: ")
-    println(typeof(vars[1]))
-
     polynomials = Vector{typeof(vars[1])}()
     used_polys = Set{UInt64}()
+    
     for _ = 1:num_polynomials
         p_attempts = 0
         while true
