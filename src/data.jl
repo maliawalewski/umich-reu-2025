@@ -55,7 +55,8 @@ function generate_ideal(;
         end
     end
 
-    return polynomials, vars
+    # TO-DO: Figure out type casting and why we are getting error with Vector{Any}
+    return convert(Vector{Any}, polynomials), convert(Vector{Any}, vars)
 end
 
 function generate_data(;
