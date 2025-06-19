@@ -54,9 +54,8 @@ function generate_ideal(;
             @assert p_attempts <= max_attempts "failed to generate a unique random polynomial after $max_attempts attempts"
         end
     end
-
-    # TO-DO: Figure out type casting and why we are getting error with Vector{Any}
-    return convert(Vector{Any}, polynomials), convert(Vector{Any}, vars)
+    
+    return polynomials, vars
 end
 
 function generate_data(;
