@@ -6,7 +6,6 @@ using Optimisers
 using Plots
 include("environment.jl")
 
-
 CAPACITY = 1_000_000
 EPISODES = 1000 # we want 10-20 ideals computed in 1 episode 
 N_SAMPLES = 256
@@ -14,8 +13,7 @@ GAMMA = 0.99
 TAU = 0.005
 LR = 3e-4
 STD = 0.2
-D = 10 # make bigger 
-
+D = 10 # can change 
 
 struct Transition
     s::Vector{Float32}
