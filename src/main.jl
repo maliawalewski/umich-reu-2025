@@ -33,7 +33,8 @@ function main()
     num_vars = 3
     delta_noise = 0.1f0
     env = init_environment(numVars = num_vars, delta_noise = delta_noise)
-    actor_struct, critic_struct = built_td3_model(env)
+    
+    actor_struct, critic_struct = build_td3_model(env)
 
     replay_buffer = CircularBuffer{Transition}(CAPACITY)
 
