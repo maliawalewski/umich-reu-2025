@@ -1,7 +1,7 @@
 using Groebner, AbstractAlgebra, Statistics
 include("environment.jl")
 include("data.jl")
-include("model.jl")
+# include("model.jl")
 
 function test_main()
     num_vars = 3
@@ -26,6 +26,8 @@ function test_main()
 
     println("Current state: ", state(env))
 end
+
+test_main()
 
 function main()
     num_vars = 3

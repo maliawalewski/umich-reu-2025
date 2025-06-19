@@ -27,8 +27,8 @@ function init_environment(;
     @assert numVars > 0 "Number of variables must be greater than 0."
     @assert delta_noise >= 0.0f0 "Delta noise must be non-negative."
 
-    state = init_state(numVars)
-    return Environment(numVars, delta_noise, state, reward, ideal, vars, is_terminated)
+    state_i = init_state(numVars)
+    return Environment(numVars, delta_noise, state_i, reward, ideal, vars, is_terminated)
 end
 
 function init_state(numVars::Int)
@@ -85,9 +85,6 @@ end
 function in_action_space(action::Vector{Float32}, env::Environment)
     # Checks if action is a valid state and that it is not moving too far from the current state
     return in_state_space(action, env) && all(abs.(action .- env.state) .<= env.delta_noise)
-    # return sum(action) < 1e-6 &&
-    #        all(action .>= -env.state) &&
-    #        all(action .<= env.delta_noise) 
 end
 
 function reward(trace::Groebner.WrappedTrace)

@@ -8,17 +8,17 @@ include("environment.jl")
 
 
 CAPACITY = 1_000_000
-EPISODES = 1000 #number of ideals 
+EPISODES = 1000 # we want 10-20 ideals computed in 1 episode 
 N_SAMPLES = 256
 GAMMA = 0.99
 TAU = 0.005
 LR = 3e-4
 STD = 0.2
-D = 2
+D = 10 # make bigger 
 
 struct Transition
     s::Vector{Float32}
-    a::Float32{Float32}
+    a::Vector{Float32}
     r::Float32
     s_next::Union{Vector{Float32},Nothing}
 end
