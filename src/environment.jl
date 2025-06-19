@@ -135,6 +135,6 @@ function reset!(env::Environment)
     # Resets the environment to its initial state
     env.state = init_state(env.numVars)
     env.reward = 0.0f0
-    env.ideal_batch = 
+    env.ideal_batch = Vector{Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}}()
     env.is_terminated = false
 end
