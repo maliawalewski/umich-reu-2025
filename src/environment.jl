@@ -7,28 +7,30 @@ mutable struct Environment
     delta_noise::Float32
     state::Vector{Float32}
     reward::Float32
-    ideal::Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}
+    ideal_batch::Vector{Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}}
     variables::Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}
     is_terminated::Bool
+    max_ideals::Int
 end
 
 function init_environment(;
     numVars::Int = 1,
     delta_noise::Float32 = 0.001f0,
     reward::Float32 = 0.0f0,
-    ideal::Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}} = Vector{
+    ideal_batch::Vector{Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}} = Vector{Vector{
         AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}},
-    }(),
+    }}(),
     vars::Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}} = Vector{
         AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}},
     }(),
     is_terminated::Bool = false,
+    max_ideals::Int = 20,
 )
     @assert numVars > 0 "Number of variables must be greater than 0."
     @assert delta_noise >= 0.0f0 "Delta noise must be non-negative."
 
     state_i = init_state(numVars)
-    return Environment(numVars, delta_noise, state_i, reward, ideal, vars, is_terminated)
+    return Environment(numVars, delta_noise, state_i, reward, ideal_batch, vars, is_terminated, max_ideals)
 end
 
 function init_state(numVars::Int)
@@ -36,39 +38,49 @@ function init_state(numVars::Int)
     return epsilon_vector ./ sum(epsilon_vector)  # Normalize to ensure it sums to 1
 end
 
-function fill_ideal(
+function fill_ideal_batch(
     env::Environment,
     num_polynomials::Int,
     max_degree::Int,
     max_terms::Int,
     max_attempts::Int,
 )
-    polys, vars = generate_ideal(
+    ideals, vars = generate_data(
+        num_ideals = env.max_ideals,
         num_polynomials = num_polynomials,
         num_variables = env.numVars,
         max_degree = max_degree,
         num_terms = max_terms,
         max_attempts = max_attempts,
     )
-    env.ideal = polys
+    env.ideal_batch = ideals
     env.variables = vars
 end
 
-function act!(env::Environment, action::Vector{Float32})
+function act!(env::Environment, action::Vector{Int})   
     @assert in_action_space(action, env) "Action must be a valid state and close enough to current state."
 
     action = [1, 2, 3]
     weights = zip(env.variables, action)
     order = WeightedOrdering(weights...)
 
-    trace, basis = groebner_learn(env.ideal, ordering = order)
-    env.state = action
-    env.reward = reward(trace)
-    println("reward: ")
-    println(env.reward)
-    env.is_terminated = true
+    cur_reward = 0.0f0
+    total_reward = 0.0f0
+    basis_vector = Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}()
 
-    return basis
+    for i in 1:length(env.ideal_batch)
+        ideal = env.ideal_batch[i]
+        trace, basis = groebner_learn(ideal, ordering = order)
+
+        basis_vector = vcat(basis_vector, basis)
+        cur_reward = reward(trace)
+        total_reward += cur_reward
+    end
+
+    env.reward = total_reward / length(env.ideal_batch)
+    env.state = action
+
+    return basis_vector
 end
 
 function make_valid_action(raw_action::Vector{Float32}, env::Environment)

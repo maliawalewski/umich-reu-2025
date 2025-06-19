@@ -7,7 +7,7 @@ function test_main()
     num_vars = 3
     delta_noise = 0.1f0
     env = init_environment(numVars = num_vars, delta_noise = delta_noise)
-    vars = fill_ideal(env, 5, 3, 10, 100)
+    # fill_ideal(env, 5, 3, 10, 100)
 
     # Example action
     raw_action = [1.0f0, 2.0f0, 3.0f0]

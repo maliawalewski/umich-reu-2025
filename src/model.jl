@@ -72,9 +72,9 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         s = Float32.(state(env))
         done = false
         total_reward = 0.0f0
-
         t = 0
         episode_loss = []
+
         while !done
             epsilon = randn() * STD
             action = actor.actor(s) .+ epsilon
@@ -159,8 +159,8 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             i_loss = losses[i-1]
             println("Episode: $i, Loss: $i_loss, Reward: $total_reward")
         end
+        
     end
-
 end
 
 function soft_update!(target, policy)

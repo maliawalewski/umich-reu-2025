@@ -54,7 +54,7 @@ function generate_ideal(;
             @assert p_attempts <= max_attempts "failed to generate a unique random polynomial after $max_attempts attempts"
         end
     end
-    
+
     return polynomials, vars
 end
 
