@@ -16,6 +16,7 @@ LR = 3e-4
 STD = 0.2
 D = 10 # make bigger 
 
+
 struct Transition
     s::Vector{Float32}
     a::Vector{Float32}
@@ -25,10 +26,9 @@ end
 
 struct Actor
     actor::Flux.Chain
-    actor.actor_target::Flux.Chain
-    actor_opt_state::Optimisers.OptimiserState
+    actor_target::Flux.Chain
+    actor_opt_state::Any
 end
-
 
 struct Critics
     critic_1::Flux.Chain
@@ -37,8 +37,8 @@ struct Critics
     critic_1_target::Flux.Chain
     critic_2_target::Flux.Chain
 
-    critic_1_opt_state::Optimisers.OptimiserState
-    critic_2_opt_state::Optimisers.OptimiserState
+    critic_1_opt_state::Any
+    critic_2_opt_state::Any
 end
 
 function build_td3_model(env::Environment)

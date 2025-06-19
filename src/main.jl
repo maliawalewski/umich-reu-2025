@@ -1,7 +1,7 @@
 using Groebner, AbstractAlgebra, Statistics
 include("environment.jl")
 include("data.jl")
-# include("model.jl")
+include("model.jl")
 
 function test_main()
     num_vars = 3
