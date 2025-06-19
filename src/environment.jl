@@ -130,6 +130,17 @@ function is_terminated(env::Environment)
 end
 
 function reset!(env::Environment)
-    # Reset the environment to its initial state
-    init_environment(numVars = env.numVars, delta_noise = env.delta_noise)
+    # Resets the environment to its initial state
+    env.state = init_state(env.numVars)
+    env.reward = 0.0f0
+    env.ideal_batch = []
+    env.is_terminated = false
+
+    fill_ideal_batch(
+    env,
+    num_polynomials = 3,
+    max_degree = 3,
+    max_terms = 5,
+    max_attempts = 10,
+)
 end
