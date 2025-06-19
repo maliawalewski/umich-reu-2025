@@ -104,8 +104,8 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
         while !done
             epsilon = randn() * STD
-            action = actor.actor(s) .+ epsilon
-            println("action: ", action, " ")
+            action = Float32.(actor.actor(s) .+ epsilon)
+            println(typeof(action))
             action = make_valid_action(env, action)
             action = round.(ACTION_SCALE * action)
 

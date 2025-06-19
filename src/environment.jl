@@ -60,7 +60,7 @@ end
 function act!(env::Environment, action::Vector{Int})   
     @assert in_action_space(action, env) "Action must be a valid state and close enough to current state."
 
-    action = [1, 2, 3]
+    # action = [1, 2, 3]
     weights = zip(env.variables, action)
     order = WeightedOrdering(weights...)
 
@@ -91,6 +91,8 @@ function make_valid_action(env::Environment, raw_action::Vector{Float32})
     println("Clamped action: ", clamped_action)
 
     action = clamped_action ./ sum(clamped_action)  # Normalize action to ensure it sums to 1
+
+
     return action
 end
 
