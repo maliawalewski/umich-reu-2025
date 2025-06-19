@@ -39,12 +39,31 @@ struct Critics
     critic_2_opt_state::Any
 end
 
+function init_actor(actor::Flux.Chain, 
+    actor_target::Flux.Chain, 
+    actor_opt_state::Any
+)
+    return Actor(actor, actor_target, actor_opt_state)
+end
+
+function init_critics(
+    critic_1::Flux.Chain,
+    critic_2::Flux.Chain,
+    critic_1_target::Flux.Chain,
+    critic_2_target::Flux.Chain,
+    critic_1_opt_state::Any,
+    critic_2_opt_state::Any,
+)
+    return Critics(critic_1, critic_2, critic_1_target, critic_2_target, critic_1_opt_state, critic_2_opt_state)
+end
+
 function build_td3_model(env::Environment)
+
     actor = Flux.Chain(Dense(env.numVars, 128, relu), Dense(128, 128, relu), Dense(128, env.numVars, tanh)) # TODO fix tanh output to match action space
     critic_1 = Flux.Chain(Dense(2 * env.numVars, 128, relu), Dense(128, 128, relu), Dense(128, 1))
     critic_2 = Flux.Chain(Dense(2 * env.numVars, 128, relu), Dense(128, 128, relu), Dense(128, 1))
 
-    actor.actor_target = deepcopy(actor)
+    actor_target = deepcopy(actor)
     critic_1_target = deepcopy(critic_1)
     critic_2_target = deepcopy(critic_2)
 
@@ -57,7 +76,7 @@ function build_td3_model(env::Environment)
     critic_1_opt_state = Flux.setup(critic_1_opt, critic_1)
     critic_2_opt_state = Flux.setup(critic_2_opt, critic_2)
     
-    actor_struct = Actor(actor, actor.actor_target, actor_opt_state)
+    actor_struct = Actor(actor, actor_target, actor_opt_state)
     critic_struct = Critics(critic_1, critic_2, critic_1_target, critic_2_target, critic_1_opt_state, critic_2_opt_state)
 
     return actor_struct, critic_struct
@@ -78,7 +97,8 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         while !done
             epsilon = randn() * STD
             action = actor.actor(s) .+ epsilon
-            action = make_valid_action(action, env)
+            println("action: ", action, " ")
+            action = make_valid_action(env, action)
 
             act!(env, action)
 
@@ -159,7 +179,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             i_loss = losses[i-1]
             println("Episode: $i, Loss: $i_loss, Reward: $total_reward")
         end
-        
+
     end
 end
 

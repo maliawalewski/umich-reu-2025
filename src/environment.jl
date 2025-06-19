@@ -83,7 +83,7 @@ function act!(env::Environment, action::Vector{Int})
     return basis_vector
 end
 
-function make_valid_action(raw_action::Vector{Float32}, env::Environment)
+function make_valid_action(env::Environment, raw_action::Vector{Float32})
     # Takes the output of the NN and makes it a valid action
     min_allowed = max.(env.state .- env.delta_noise, 0.0f0)
     max_allowed = env.state .+ env.delta_noise
@@ -137,10 +137,6 @@ function reset!(env::Environment)
     env.is_terminated = false
 
     fill_ideal_batch(
-    env,
-    num_polynomials = 3,
-    max_degree = 3,
-    max_terms = 5,
-    max_attempts = 10,
-)
+    env, 3, 3, 5, 10,
+    )
 end
