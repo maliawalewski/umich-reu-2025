@@ -5,8 +5,8 @@ include("model.jl")
 
 function main()
     num_vars = 3
-    delta_noise = 0.1f0
-    env = init_environment(numVars = num_vars, delta_noise = delta_noise)
+    delta_bound = 0.01f0
+    env = init_environment(numVars = num_vars, delta_bound = delta_bound)
 
     actor_struct, critic_struct = build_td3_model(env)
 
