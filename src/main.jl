@@ -1,4 +1,4 @@
-using Groebner, AbstractAlgebra, Statistics
+using Groebner, AbstractAlgebra, Statistics, Dates
 include("environment.jl")
 include("data.jl")
 include("model.jl")
@@ -15,4 +15,10 @@ function main()
     train_td3!(actor_struct, critic_struct, env, replay_buffer)
 end
 
+start_time = now()
 main()
+end_time = now()
+
+elapsed_ms = Millisecond(end_time - start_time).value
+elapsed_sec = elapsed_ms / 1000
+println("Total runtime: $elapsed_sec seconds")

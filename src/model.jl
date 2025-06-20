@@ -7,7 +7,7 @@ using Plots
 include("environment.jl")
 
 CAPACITY = 1_000_000
-EPISODES = 10000 # we want 10-20 ideals computed in 1 episode 
+EPISODES = 1_000_000 # we want 10-20 ideals computed in 1 episode 
 N_SAMPLES = 100
 GAMMA = 0.99
 TAU = 0.005
@@ -93,6 +93,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
     losses = []
     rewards = []
+    actions_taken = []
 
     for i = 1:EPISODES
         reset!(env)
@@ -109,6 +110,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
             basis = act!(env, action)
             s_next = Float32.(state(env))
+            push!(actions_taken, s_next)
             r = Float32(env.reward)
             push!(rewards, r)
             done = is_terminated(env)
@@ -181,8 +183,8 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         if length(episode_loss) != 0
             avg_loss = mean(episode_loss)
             push!(losses, avg_loss)
-            if i % 100 == 0
-                println("Episode: $i, Loss: $avg_loss, Reward: ", env.reward)
+            if i % 10000 == 0
+                println("Episode: $i, Action Taken: ", actions_taken[i], " Loss: $avg_loss, Reward: ", env.reward)
                 println()
             end
         end
@@ -194,8 +196,8 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         xlabel = "Episode",
         ylabel = "Loss",
         label = "Loss",
-        lw = 2,
-        marker = :circle,
+        lw = 1,
+        marker = false,
         legend = :topright)
 
     savefig(loss_plot, "loss_plot.png")
@@ -206,8 +208,8 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         xlabel = "Episode",
         ylabel = "Reward",
         label = "Reward",
-        lw = 2,
-        marker = :circle,
+        lw = 1,
+        marker = false,
         legend = :topright)
 
     savefig(reward_plot, "reward_plot.png")
