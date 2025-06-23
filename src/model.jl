@@ -66,9 +66,13 @@ end
 
 function build_td3_model(env::Environment)
 
-    actor = Flux.Chain(Dense(env.numVars, 256, relu), Dense(256, 256, relu), Dense(256, env.numVars, tanh)) # TODO fix tanh output to match action space
-    critic_1 = Flux.Chain(Dense(2 * env.numVars, 256, relu), Dense(256, 256, relu), Dense(256, 1))
-    critic_2 = Flux.Chain(Dense(2 * env.numVars, 256, relu), Dense(256, 256, relu), Dense(256, 1))
+    actor = Flux.Chain(
+        LSTM(env.num_vars(env.num_terms) + 1 => env.num_vars),
+        sigmoid
+        )
+
+    critic_1 = Flux.Chain(Dense(2 * env.num_vars, 256, relu), Dense(256, 256, relu), Dense(256, 1))
+    critic_2 = Flux.Chain(Dense(2 * env.num_vars, 256, relu), Dense(256, 256, relu), Dense(256, 1))
 
     actor_target = deepcopy(actor)
     critic_1_target = deepcopy(critic_1)
@@ -97,15 +101,16 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
     for i = 1:EPISODES
         reset_env!(env)
-        fill_ideal_batch(env, NUM_POLYS, MAX_DEGREE, NUM_TERMS, MAX_ATTEMPTS) # fill with random ideals
+        fill_ideal_batch(env, NUM_POLYS, MAX_DEGREE, NUM_TERMS, MAX_ATTEMPTS) # fill with random ideals // OUTPUT MONOMIAL MATRIX
         s = Float32.(state(env))
         done = false
         t = 0
         episode_loss = []
 
-        while !done
+        while !done # check it out 
             epsilon = randn() * STD
-            action = Float32.(actor.actor(s) .+ epsilon)
+            actor_input = hcat(monomial_matrix, s)
+            action = Float32.(actor.actor(actor_input) .+ epsilon)
             basis = act!(env, action)
 
             s_next = Float32.(state(env))
@@ -131,7 +136,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             r_batch = hcat([b.r for b in batch]...)
 
             next_s_batch = hcat(
-                [b.s_next !== nothing ? b.s_next : zeros(Float32, env.numVars) for b in batch]...,
+                [b.s_next !== nothing ? b.s_next : zeros(Float32, env.num_vars) for b in batch]...,
             )
             not_done = reshape(Float32.(getfield.(batch, :s_next) .!== nothing), 1, :)
 
@@ -183,6 +188,8 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             t += 1
 
         end
+
+        
 
         if length(episode_loss) != 0
             avg_loss = mean(episode_loss)

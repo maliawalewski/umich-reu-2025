@@ -5,7 +5,7 @@ include("data.jl")
 ACTION_SCALE = 1e4
 
 mutable struct Environment
-    numVars::Int
+    num_vars::Int
     delta_bound::Float32
     state::Vector{Float32}
     reward::Float64
@@ -13,10 +13,13 @@ mutable struct Environment
     variables::Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}
     is_terminated::Bool
     num_ideals::Int
+    iteration_count::Int # Added
+    max_iterations::Int # Added
+    num_terms::Int
 end
 
 function init_environment(;
-    numVars::Int = 1,
+    num_vars::Int = 1,
     delta_bound::Float32 = 0.01f0,
     reward::Float32 = 0.0f0,
     ideal_batch::Vector{Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}} = Vector{Vector{
@@ -27,16 +30,19 @@ function init_environment(;
     }(),
     is_terminated::Bool = false,
     num_ideals::Int = 10,
+    iteration_count::Int = 0, # Added
+    max_iterations::Int = 5, # Added
+    num_terms::Int = num_vars + 3
 )
-    @assert numVars > 0 "Number of variables must be greater than 0."
+    @assert num_vars > 0 "Number of variables must be greater than 0."
     @assert delta_bound >= 0.0f0 "Delta noise must be non-negative."
 
     state_i = init_state(numVars)
-    return Environment(numVars, delta_bound, state_i, reward, ideal_batch, vars, is_terminated, num_ideals)
+    return Environment(numVars, delta_bound, state_i, reward, ideal_batch, vars, is_terminated, num_ideals, iteration_count, max_iterations, num_terms) # Added
 end
 
-function init_state(numVars::Int)
-    epsilon_vector = 1 .+ rand(Float32, numVars)
+function init_state(num_vars::Int)
+    epsilon_vector = 1 .+ rand(Float32, num_vars)
     return epsilon_vector ./ sum(epsilon_vector)  # Normalize to ensure it sums to 1
 end
 
@@ -50,7 +56,7 @@ function fill_ideal_batch(
     ideals, vars = generate_data(
         num_ideals = env.num_ideals,
         num_polynomials = num_polynomials,
-        num_variables = env.numVars,
+        num_variables = env.num_vars,
         max_degree = max_degree,
         num_terms = num_terms,
         max_attempts = max_attempts,
@@ -84,15 +90,20 @@ function act!(env::Environment, action::Vector{Float32})
     end
 
     env.reward = total_reward / Float64(length(env.ideal_batch))
-    env.is_terminated = true
+    # env.is_terminated = true
+    env.iteration_count += 1 # Added
+    if env.iteration_count >= env.max_iterations # Added
+        env.is_terminated = true # Added
+    end    # Added
+
 
     return basis_vector
 end
 
 function make_valid_action(env::Environment, raw_action::Vector{Float32})
     # Takes the output of the NN and makes it a valid action
-    raw_action = raw_action .+ rand(Float32, env.numVars) # Add noise to the action
-    min_allowed = max.(env.state .- env.delta_bound, Float32(1e-1))
+    raw_action = raw_action .+ rand(Float32, env.num_vars) # Add noise to the action
+    min_allowed = max.(env.state .- env.delta_bound, Float32(1/env.num_vars^2))
     max_allowed = env.state .+ env.delta_bound
     clamped_action = clamp.(raw_action, min_allowed, max_allowed)
 
@@ -123,7 +134,7 @@ end
 
 function in_state_space(x::Vector{Float32}, env::Environment)
     # Checks if vector is within state space 
-    @assert length(x) == env.numVars "State vector must have the same number of variables as the environment."
+    @assert length(x) == env.num_vars "State vector must have the same number of variables as the environment."
     return all(x .>= 0.0f0) && abs(sum(x) - 1.0f0) < 1e-6 # vector sums to 1 and all elements are non-negative
 end
 
@@ -141,4 +152,5 @@ function reset_env!(env::Environment)
     env.reward = Float64(0.0f0)
     env.ideal_batch = Vector{Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}}()
     env.is_terminated = false
+    env.iteration_count = 0 # Added
 end
