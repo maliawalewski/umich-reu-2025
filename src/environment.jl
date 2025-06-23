@@ -16,6 +16,7 @@ mutable struct Environment
     iteration_count::Int # Added
     max_iterations::Int # Added
     num_terms::Int
+    monomial_matrix::Array{Vector{Any}}
 end
 
 function init_environment(;
@@ -32,13 +33,14 @@ function init_environment(;
     num_ideals::Int = 10,
     iteration_count::Int = 0, # Added
     max_iterations::Int = 5, # Added
-    num_terms::Int = num_vars + 3
+    num_terms::Int = num_vars + 3,
+    monomial_matrix::Array{Vector{Any}} = Array{Vector{Any}}(undef, num_vars, num_vars * num_terms), # num_vars = num_polys for now, maybe sub constant later
 )
     @assert num_vars > 0 "Number of variables must be greater than 0."
     @assert delta_bound >= 0.0f0 "Delta noise must be non-negative."
 
-    state_i = init_state(numVars)
-    return Environment(numVars, delta_bound, state_i, reward, ideal_batch, vars, is_terminated, num_ideals, iteration_count, max_iterations, num_terms) # Added
+    state_i = init_state(num_vars)
+    return Environment(num_vars, delta_bound, state_i, reward, ideal_batch, vars, is_terminated, num_ideals, iteration_count, max_iterations, num_terms, monomial_matrix) # Added
 end
 
 function init_state(num_vars::Int)
@@ -50,19 +52,19 @@ function fill_ideal_batch(
     env::Environment,
     num_polynomials::Int,
     max_degree::Int,
-    num_terms::Int,
     max_attempts::Int,
 )
-    ideals, vars = generate_data(
+    ideals, vars, monomial_matrix = new_generate_data(
         num_ideals = env.num_ideals,
         num_polynomials = num_polynomials,
         num_variables = env.num_vars,
         max_degree = max_degree,
-        num_terms = num_terms,
+        num_terms = env.num_terms,
         max_attempts = max_attempts,
     )
     env.ideal_batch = ideals
     env.variables = vars
+    env.monomial_matrix = monomial_matrix
 end
 
 function act!(env::Environment, action::Vector{Float32})   

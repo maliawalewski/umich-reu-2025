@@ -96,6 +96,7 @@ function new_generate_ideal(;
     base_sets::Vector{Any} = Vector{Any}(),
     max_attempts::Integer = 100,
 )
+  
     @assert num_variables > 0 "num_variables must be greater than 0"
     @assert length(base_sets) == num_polynomials "number of base_sets does not match the number of polynomials"
     @assert length(base_sets[1]) == num_terms "number of exponents in base_set does not match the number of terms"
@@ -133,6 +134,7 @@ function new_generate_data(;
     num_terms::Integer = 3,
     max_attempts::Integer = 100,
 )
+
     @assert num_ideals > 0 "num_ideals must be greater than 0"
     @assert num_polynomials > 0 "num_polynomials must be greater than 0"
     @assert num_variables > 0 "num_variables must be greater than 0"
@@ -165,6 +167,7 @@ function new_generate_data(;
     for _ in 1:num_ideals
         ideal, vars = new_generate_ideal(
             num_variables = num_variables,
+            num_terms = num_terms,
             base_sets = base_sets,
             max_attempts = max_attempts,
         )

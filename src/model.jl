@@ -19,7 +19,6 @@ D = 10 # can change
 # Data parameters (used to generate ideal batch)
 NUM_POLYS = 3
 MAX_DEGREE = 4
-NUM_TERMS = 3
 MAX_ATTEMPTS = 100
 
 struct Transition
@@ -66,10 +65,7 @@ end
 
 function build_td3_model(env::Environment)
 
-    actor = Flux.Chain(
-        LSTM(env.num_vars(env.num_terms) + 1 => env.num_vars),
-        sigmoid
-        )
+    actor = Flux.Chain(LSTM((env.num_vars * env.num_terms) + 1 => env.num_vars), sigmoid)
 
     critic_1 = Flux.Chain(Dense(2 * env.num_vars, 256, relu), Dense(256, 256, relu), Dense(256, 1))
     critic_2 = Flux.Chain(Dense(2 * env.num_vars, 256, relu), Dense(256, 256, relu), Dense(256, 1))
@@ -101,7 +97,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
     for i = 1:EPISODES
         reset_env!(env)
-        fill_ideal_batch(env, NUM_POLYS, MAX_DEGREE, NUM_TERMS, MAX_ATTEMPTS) # fill with random ideals // OUTPUT MONOMIAL MATRIX
+        fill_ideal_batch(env, NUM_POLYS, MAX_DEGREE, MAX_ATTEMPTS) # fill with random ideals
         s = Float32.(state(env))
         done = false
         t = 0
@@ -109,7 +105,13 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
         while !done # check it out 
             epsilon = randn() * STD
-            actor_input = hcat(monomial_matrix, s)
+            data = env.monomial_matrix
+            matrix = hcat([reduce(hcat, group) for group in data]...)
+            actor_input = hcat(matrix, s)
+            println("size of actor_input", size(actor_input))
+            println("size of actor_input[1]: ", length(actor_input[:, 1]), " elements")
+            # println("actor_input size: ", size(actor_input))
+            # println(actor_input)
             action = Float32.(actor.actor(actor_input) .+ epsilon)
             basis = act!(env, action)
 
@@ -141,6 +143,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             not_done = reshape(Float32.(getfield.(batch, :s_next) .!== nothing), 1, :)
 
             epsilon = clamp.(randn(1, N_SAMPLES) * STD, -0.5f0, 0.5f0)
+
             target_action = actor.actor_target(next_s_batch) .+ epsilon
 
             target_action = Float32.(target_action)
