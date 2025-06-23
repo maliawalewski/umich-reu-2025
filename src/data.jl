@@ -19,20 +19,27 @@ function generate_ideal(;
     polynomials = Vector{typeof(vars[1])}()
     used_polys = Set{UInt64}()
     
-    for _ = 1:num_polynomials
+    for _ in 1:num_polynomials
         p_attempts = 0
         while true
             used_exponents = Set{NTuple{num_variables,Int}}()
             terms = []
-            for _ = 1:num_terms
+            for _ in 1:num_terms
                 attempts = 0
                 while true
                     exponents = rand(0:max_degree, num_variables)
                     expt_key = Tuple(exponents)
                     if !(expt_key in used_exponents)
                         push!(used_exponents, expt_key)
+                        coeff = rand(field)
+                        c_attempts = 0
+                        while coeff == 0 
+                            coeff = rand(field)
+                            c_attempts += 1 
+                            @assert c_attempts <= max_attempts "failed to generate a non-zero coefficient after $max_attempts attempts"
+                        end
                         monomial =
-                            rand(field) * prod(vars[i]^exponents[i] for i = 1:num_variables)
+                            coeff * prod(vars[i]^exponents[i] for i = 1:num_variables)
                         push!(terms, monomial)
                         break
                     end
@@ -67,7 +74,7 @@ function generate_data(;
 
     ideals = []
     variables = nothing
-    for _ = 1:num_ideals
+    for _ in 1:num_ideals
         ideal, vars = generate_ideal(
             num_polynomials = num_polynomials,
             num_variables = num_variables,
