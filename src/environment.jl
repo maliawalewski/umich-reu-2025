@@ -13,6 +13,8 @@ mutable struct Environment
     variables::Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}
     is_terminated::Bool
     num_ideals::Int
+    iteration_count::Int # Added
+    max_iterations::Int # Added
 end
 
 function init_environment(;
@@ -27,12 +29,14 @@ function init_environment(;
     }(),
     is_terminated::Bool = false,
     num_ideals::Int = 10,
+    iteration_count::Int = 0, # Added
+    max_iterations::Int = 5, # Added
 )
     @assert numVars > 0 "Number of variables must be greater than 0."
     @assert delta_bound >= 0.0f0 "Delta noise must be non-negative."
 
     state_i = init_state(numVars)
-    return Environment(numVars, delta_bound, state_i, reward, ideal_batch, vars, is_terminated, num_ideals)
+    return Environment(numVars, delta_bound, state_i, reward, ideal_batch, vars, is_terminated, num_ideals, iteration_count, max_iterations) # Added
 end
 
 function init_state(numVars::Int)
@@ -84,7 +88,12 @@ function act!(env::Environment, action::Vector{Float32})
     end
 
     env.reward = total_reward / Float64(length(env.ideal_batch))
-    env.is_terminated = true
+    # env.is_terminated = true
+    env.iteration_count += 1 # Added
+    if env.iteration_count >= env.max_iterations # Added
+        env.is_terminated = true # Added
+    end    # Added
+
 
     return basis_vector
 end
@@ -141,4 +150,5 @@ function reset_env!(env::Environment)
     env.reward = Float64(0.0f0)
     env.ideal_batch = Vector{Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}}()
     env.is_terminated = false
+    env.iteration_count = 0 # Added
 end

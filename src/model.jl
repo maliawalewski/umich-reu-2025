@@ -103,7 +103,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         t = 0
         episode_loss = []
 
-        while !done
+        while !done # check it out 
             epsilon = randn() * STD
             action = Float32.(actor.actor(s) .+ epsilon)
             basis = act!(env, action)
@@ -183,6 +183,8 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             t += 1
 
         end
+
+        
 
         if length(episode_loss) != 0
             avg_loss = mean(episode_loss)
