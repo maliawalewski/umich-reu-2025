@@ -37,13 +37,13 @@ struct Transition
     s_next_input::Union{Array{Float32},Nothing}
 end
 
-mutable struct Actor
+struct Actor
     actor::Flux.Chain
     actor_target::Flux.Chain
     actor_opt_state::Any
 end
 
-mutable struct Critics
+struct Critics
     critic_1::Flux.Chain
     critic_2::Flux.Chain
 
@@ -248,15 +248,10 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         end
 
         current_lr = max(MIN_LR, current_lr - LR_DECAY) 
+        Flux.adjust!(actor.actor_opt_state, current_lr)
+        Flux.adjust!(critic.critic_1_opt_state, current_lr)
+        Flux.adjust!(critic.critic_2_opt_state, current_lr)
 
-        actor_opt = ADAM(current_lr)
-        actor.actor_opt_state = Flux.setup(actor_opt, actor.actor)
-
-        critic_1_opt = ADAM(current_lr)
-        critic.critic_1_opt_state = Flux.setup(critic_1_opt, critic.critic_1)
-    
-        critic_2_opt = ADAM(current_lr)
-        critic.critic_2_opt_state = Flux.setup(critic_2_opt, critic.critic_2)
     end
 
     episodes = 1:length(losses)
