@@ -122,8 +122,9 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             matrix = hcat([reduce(hcat, group) for group in env.monomial_matrix]...)
             s_input = hcat(matrix, s)
             s_input = reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1))
-            # println("s_input size: ", size(s_input))
-            # println("actor net output size: ", size(actor.actor(s_input)))
+            println("Episode: $i, Step: ", env.iteration_count)
+            println("s_input size: ", size(s_input))
+            println("actor net output size: ", size(actor.actor(s_input)))
             action = vec(Float32.(actor.actor(s_input) .+ epsilon))
 
             basis = act!(env, action)
@@ -139,10 +140,12 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
             done = is_terminated(env)
             s_next = done ? nothing : s_next
+            s_next_input = done ? nothing : s_next_input
 
             push!(replay_buffer, Transition(s, action, r, s_next, s_input, s_next_input))
 
             s = s_next === nothing ? s : s_next
+            s_input = s_next_input === nothing ? s_input : s_next_input
 
             if length(replay_buffer) < N_SAMPLES
                 continue
@@ -155,9 +158,12 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             s_next_batch = hcat(
                 [b.s_next !== nothing ? b.s_next : zeros(Float32, env.num_vars) for b in batch]...,
             )
-            not_done = reshape(Float32.(getfield.(batch, :s_next) .!== nothing), 1, :)
+            # not_done = reshape(Float32.(getfield.(batch, :s_next) .!== nothing), 1, :)
             s_input_batch = hcat([b.s_input for b in batch]...)
-            s_next_input_batch = hcat([b.s_next_input !== nothing ? b.s_next_input : zeros(Float32, env.num_vars) for b in batch]...,)
+            println("S_input batch size: ", size(s_input_batch))
+
+            s_next_input_batch = hcat([b.s_next_input !== nothing ? b.s_next_input : zeros(Float32, ((env.num_vars * env.num_terms) + 1) * env.num_vars) for b in batch]...,)
+            not_done = reshape(Float32.(getfield.(batch, :s_next_input) .!== nothing), 1, :)
             # println("s_next_input_batch size: ", size(s_next_input_batch))
 
             epsilon = clamp.(randn(1, N_SAMPLES) * STD, -0.5f0, 0.5f0)
