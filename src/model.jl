@@ -30,6 +30,8 @@ struct Transition
     a::Vector{Float32}
     r::Float32
     s_next::Union{Vector{Float32},Nothing}
+    s_input::Array{Float32}
+    s_next_input::Union{Array{Float32},Nothing}
 end
 
 struct Actor
@@ -117,23 +119,19 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
         while !done
             epsilon = randn() * STD
-            data = env.monomial_matrix
-            matrix = hcat([reduce(hcat, group) for group in data]...)
-            actor_input = hcat(matrix, s)
-            println("size of actor_input", size(actor_input))
-            
-            actor_input = reshape(actor_input, (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1))
-
-            println("size of actor_input", size(actor_input))
-            # println("actor_input size: ", size(actor_input))
-            println(actor_input)
-            action = vec(Float32.(actor.actor(actor_input) .+ epsilon))
-            println(size(action))
-            println(action)
+            matrix = hcat([reduce(hcat, group) for group in env.monomial_matrix]...)
+            s_input = hcat(matrix, s)
+            s_input = reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1))
+            # println("s_input size: ", size(s_input))
+            # println("actor net output size: ", size(actor.actor(s_input)))
+            action = vec(Float32.(actor.actor(s_input) .+ epsilon))
 
             basis = act!(env, action)
 
             s_next = Float32.(state(env))
+            s_next_input = hcat(matrix, s_next)
+            s_next_input = reshape(s_next_input, (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1))
+
             push!(actions_taken, s_next)
 
             r = Float32(env.reward)
@@ -142,7 +140,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             done = is_terminated(env)
             s_next = done ? nothing : s_next
 
-            push!(replay_buffer, Transition(s, action, r, s_next))
+            push!(replay_buffer, Transition(s, action, r, s_next, s_input, s_next_input))
 
             s = s_next === nothing ? s : s_next
 
@@ -154,37 +152,41 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             s_batch = hcat([b.s for b in batch]...)
             a_batch = hcat([b.a for b in batch]...)
             r_batch = hcat([b.r for b in batch]...)
-
-            next_s_batch = hcat(
+            s_next_batch = hcat(
                 [b.s_next !== nothing ? b.s_next : zeros(Float32, env.num_vars) for b in batch]...,
             )
             not_done = reshape(Float32.(getfield.(batch, :s_next) .!== nothing), 1, :)
+            s_input_batch = hcat([b.s_input for b in batch]...)
+            s_next_input_batch = hcat([b.s_next_input !== nothing ? b.s_next_input : zeros(Float32, env.num_vars) for b in batch]...,)
+            # println("s_next_input_batch size: ", size(s_next_input_batch))
 
             epsilon = clamp.(randn(1, N_SAMPLES) * STD, -0.5f0, 0.5f0)
 
-            target_action = actor.actor_target(next_s_batch) .+ epsilon
+            target_action = actor.actor_target(s_next_input_batch) .+ epsilon
 
             target_action = Float32.(target_action)
             cols_as_vectors = [Vector{Float32}(col) for col in eachcol(target_action)]
             target_action = [make_valid_action(env, col) for col in cols_as_vectors]
             target_action = reduce(hcat, target_action)
+            # println("target_action size: ", size(target_action))
+            # println("critic input size: ", size(vcat(s_next_input_batch, target_action)))
 
-            critic_1_target_val = critic.critic_1_target(vcat(next_s_batch, target_action))
-            critic_2_target_val = critic.critic_2_target(vcat(next_s_batch, target_action))
+            critic_1_target_val = critic.critic_1_target(vcat(s_next_input_batch, target_action))
+            critic_2_target_val = critic.critic_2_target(vcat(s_next_input_batch, target_action))
 
             min_q = min.(critic_1_target_val, critic_2_target_val)
 
             y = r_batch .+ GAMMA .* not_done .* min_q
 
             loss1, back1 = Flux.withgradient(critic.critic_1) do model
-                pred = model(vcat(s_batch, a_batch))
+                pred = model(vcat(s_input_batch, a_batch))
                 mean((pred .- y) .^ 2)
             end
 
             Flux.update!(critic.critic_1_opt_state, critic.critic_1, back1[1])
 
             loss2, back2 = Flux.withgradient(critic.critic_2) do model
-                pred = model(vcat(s_batch, a_batch))
+                pred = model(vcat(s_input_batch, a_batch))
                 mean((pred .- y) .^ 2)
             end
 
@@ -192,8 +194,8 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
             if t % D == 0
                 actor_loss, back = Flux.withgradient(actor.actor) do model
-                    a_pred = model(s_batch)
-                    q_val = critic.critic_1(vcat(s_batch, a_pred))
+                    a_pred = model(s_input_batch)
+                    q_val = critic.critic_1(vcat(s_input_batch, a_pred))
                     -mean(q_val)
                 end
 
