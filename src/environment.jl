@@ -107,7 +107,7 @@ end
 function make_valid_action(env::Environment, raw_action::Vector{Float32})
     # Takes the output of the NN and makes it a valid action
     raw_action = raw_action .+ rand(Float32, env.num_vars) # Add noise to the action
-    min_allowed = max.(env.state .- env.delta_bound, Float32(1 / env.num_vars^2))
+    min_allowed = max.(env.state .- env.delta_bound, Float32(1 / env.num_vars^3))
     max_allowed = env.state .+ env.delta_bound
     clamped_action = clamp.(raw_action, min_allowed, max_allowed)
 

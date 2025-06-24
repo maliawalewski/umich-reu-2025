@@ -8,7 +8,7 @@ include("environment.jl")
 
 # TD3 parameters
 CAPACITY = 1_000_000
-EPISODES = 10_000
+EPISODES = 1_000
 N_SAMPLES = 100
 GAMMA = 0.99 # Discount factor
 TAU = 0.005 # Soft update parameter
@@ -71,9 +71,9 @@ end
 
 function build_td3_model(env::Environment)
     
-    actor_layers = Any[LSTM(((env.num_vars * env.num_terms) + 1) * env.num_vars => ACTOR_HIDDEN_WIDTH)]
+    actor_layers = Any[Dense(((env.num_vars * env.num_terms) + 1) * env.num_vars => ACTOR_HIDDEN_WIDTH)]
     for l in 1:(ACTOR_DEPTH - 1)
-        layer = LSTM(ACTOR_HIDDEN_WIDTH => ACTOR_HIDDEN_WIDTH)
+        layer = Dense(ACTOR_HIDDEN_WIDTH => ACTOR_HIDDEN_WIDTH)
         push!(actor_layers, layer)
     end
     push!(actor_layers, Dense(ACTOR_HIDDEN_WIDTH, env.num_vars))
@@ -111,7 +111,20 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
     for i = 1:EPISODES
         reset_env!(env)
-        fill_ideal_batch(env, env.num_polys, MAX_DEGREE, MAX_ATTEMPTS) # fill with random ideals
+        # fill_ideal_batch(env, env.num_polys, MAX_DEGREE, MAX_ATTEMPTS) # fill with random ideals
+        
+        # TESTING FIXED IDEAL
+        field = GF(32003)
+        ring, (x, y, z) = polynomial_ring(field, ["x", "y", "z"])
+        ideal = [x^2 + y + z, x + x*y^2 + z^3, x^3*y + x*y + y*z^2]
+        env.ideal_batch = [ideal, ideal, ideal, ideal, ideal, ideal, ideal, ideal, ideal, ideal]
+        env.monomial_matrix = [[[2,0,0],[0,1,0],[0,0,1]],
+        [[1,0,0],[1,2,0],[0,0,3]],
+        [[3,1,0],[1,1,0],[0,1,2]]
+        ]
+        env.variables = [x, y, z]
+        # END TESTING FIXED IDEAL
+
         s = Float32.(state(env))
         done = false
         t = 0
@@ -122,9 +135,6 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             matrix = hcat([reduce(hcat, group) for group in env.monomial_matrix]...)
             s_input = hcat(matrix, s)
             s_input = reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1))
-            println("Episode: $i, Step: ", env.iteration_count)
-            println("s_input size: ", size(s_input))
-            println("actor net output size: ", size(actor.actor(s_input)))
             action = vec(Float32.(actor.actor(s_input) .+ epsilon))
 
             basis = act!(env, action)
@@ -148,6 +158,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             s_input = s_next_input === nothing ? s_input : s_next_input
 
             if length(replay_buffer) < N_SAMPLES
+                t += 1
                 continue
             end
 
@@ -158,13 +169,9 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             s_next_batch = hcat(
                 [b.s_next !== nothing ? b.s_next : zeros(Float32, env.num_vars) for b in batch]...,
             )
-            # not_done = reshape(Float32.(getfield.(batch, :s_next) .!== nothing), 1, :)
             s_input_batch = hcat([b.s_input for b in batch]...)
-            println("S_input batch size: ", size(s_input_batch))
-
             s_next_input_batch = hcat([b.s_next_input !== nothing ? b.s_next_input : zeros(Float32, ((env.num_vars * env.num_terms) + 1) * env.num_vars) for b in batch]...,)
             not_done = reshape(Float32.(getfield.(batch, :s_next_input) .!== nothing), 1, :)
-            # println("s_next_input_batch size: ", size(s_next_input_batch))
 
             epsilon = clamp.(randn(1, N_SAMPLES) * STD, -0.5f0, 0.5f0)
 
@@ -174,8 +181,6 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             cols_as_vectors = [Vector{Float32}(col) for col in eachcol(target_action)]
             target_action = [make_valid_action(env, col) for col in cols_as_vectors]
             target_action = reduce(hcat, target_action)
-            # println("target_action size: ", size(target_action))
-            # println("critic input size: ", size(vcat(s_next_input_batch, target_action)))
 
             critic_1_target_val = critic.critic_1_target(vcat(s_next_input_batch, target_action))
             critic_2_target_val = critic.critic_2_target(vcat(s_next_input_batch, target_action))
@@ -221,7 +226,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         if length(episode_loss) != 0
             avg_loss = mean(episode_loss)
             push!(losses, avg_loss)
-            if i % 100 == 0
+            if i % 10 == 0
                 println("Episode: $i, Action Taken: ", actions_taken[i], " Loss: $avg_loss, Reward: ", env.reward)
                 println()
             end
