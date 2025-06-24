@@ -65,7 +65,7 @@ end
 
 function build_td3_model(env::Environment)
 
-    actor = Flux.Chain(LSTM(((env.num_vars * env.num_terms) + 1, env.num_vars)), sigmoid)
+    actor = Flux.Chain(LSTM(((env.num_vars * env.num_terms) + 1) * env.num_vars => env.num_vars), sigmoid)
 
     critic_1 = Flux.Chain(Dense(2 * env.num_vars, 256, relu), Dense(256, 256, relu), Dense(256, 1))
     critic_2 = Flux.Chain(Dense(2 * env.num_vars, 256, relu), Dense(256, 256, relu), Dense(256, 1))
@@ -109,9 +109,17 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             matrix = hcat([reduce(hcat, group) for group in data]...)
             actor_input = hcat(matrix, s)
             println("size of actor_input", size(actor_input))
+            
+            actor_input = reshape(actor_input, (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1))
+
+            println("size of actor_input", size(actor_input))
             # println("actor_input size: ", size(actor_input))
             println(actor_input)
-            action = Float32.(actor.actor(actor_input) .+ epsilon)
+            action = vec(Float32.(actor.actor(actor_input) .+ epsilon))
+            println(size(action))
+            println(action)
+
+
             basis = act!(env, action)
 
             s_next = Float32.(state(env))
