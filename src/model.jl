@@ -23,7 +23,7 @@ MAX_ATTEMPTS = 100
 # NN parameters
 CRITIC_HIDDEN_WIDTH = 256
 ACTOR_HIDDEN_WIDTH = 256 
-ACTOR_HIDDEN_DEPTH = 2 # Number of LSTM layers
+ACTOR_DEPTH = 2 # Number of LSTM layers
 
 struct Transition
     s::Vector{Float32}
@@ -68,8 +68,16 @@ function init_critics(
 end
 
 function build_td3_model(env::Environment)
+    
+    actor_layers = Any[LSTM(((env.num_vars * env.num_terms) + 1) * env.num_vars => ACTOR_HIDDEN_WIDTH)]
+    for l in 1:(ACTOR_DEPTH - 1)
+        layer = LSTM(ACTOR_HIDDEN_WIDTH => ACTOR_HIDDEN_WIDTH)
+        push!(actor_layers, layer)
+    end
+    push!(actor_layers, Dense(ACTOR_HIDDEN_WIDTH, env.num_vars))
+    push!(actor_layers, sigmoid)
 
-    actor = Flux.Chain(LSTM(((env.num_vars * env.num_terms) + 1) * env.num_vars => env.num_vars), sigmoid)
+    actor = Flux.Chain(actor_layers...)
 
     critic_1 = Flux.Chain(Dense(((env.num_vars * env.num_terms) + 2) * env.num_vars, CRITIC_HIDDEN_WIDTH, relu), Dense(CRITIC_HIDDEN_WIDTH, CRITIC_HIDDEN_WIDTH, relu), Dense(CRITIC_HIDDEN_WIDTH, 1))
     critic_2 = Flux.Chain(Dense(((env.num_vars * env.num_terms) + 2) * env.num_vars, CRITIC_HIDDEN_WIDTH, relu), Dense(CRITIC_HIDDEN_WIDTH, CRITIC_HIDDEN_WIDTH, relu), Dense(CRITIC_HIDDEN_WIDTH, 1))
