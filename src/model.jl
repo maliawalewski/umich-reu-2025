@@ -9,11 +9,13 @@ include("environment.jl")
 
 # TD3 parameters
 CAPACITY = 1_000_000
-EPISODES = 5_000
+EPISODES = 3_000
 N_SAMPLES = 100
 GAMMA = 0.99 # Discount factor
 TAU = 0.005 # Soft update parameter
-LR = 1e-3 # Learning rate for actor and critics
+LR = 1e-2 # Learning rate for actor and critics
+MIN_LR = 1e-5 # Minimum Learning Rate
+LR_DECAY = 4.95e-06 # LR decay Rate
 STD = 0.002 # Standard deviation for exploration noise
 D = 10 # Update frequency for target actor and critics 
 
@@ -35,13 +37,13 @@ struct Transition
     s_next_input::Union{Array{Float32},Nothing}
 end
 
-struct Actor
+mutable struct Actor
     actor::Flux.Chain
     actor_target::Flux.Chain
     actor_opt_state::Any
 end
 
-struct Critics
+mutable struct Critics
     critic_1::Flux.Chain
     critic_2::Flux.Chain
 
@@ -106,13 +108,15 @@ function build_td3_model(env::Environment)
     return actor_struct, critic_struct
 end
 
-function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buffer::CircularBuffer{Transition})
+function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buffer::CircularBuffer{Transition}, initial_lr::Float64)
 
     losses = []
     rewards = []
     actions_taken = []
     losses_1 = []
     losses_2 = []
+
+    current_lr = initial_lr
 
     for i = 1:EPISODES
         reset_env!(env)
@@ -242,6 +246,17 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
                 println()
             end
         end
+
+        current_lr = max(MIN_LR, current_lr - LR_DECAY) 
+
+        actor_opt = ADAM(current_lr)
+        actor.actor_opt_state = Flux.setup(actor_opt, actor.actor)
+
+        critic_1_opt = ADAM(current_lr)
+        critic.critic_1_opt_state = Flux.setup(critic_1_opt, critic.critic_1)
+    
+        critic_2_opt = ADAM(current_lr)
+        critic.critic_2_opt_state = Flux.setup(critic_2_opt, critic.critic_2)
     end
 
     episodes = 1:length(losses)

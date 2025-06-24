@@ -27,7 +27,7 @@ function main()
 
     replay_buffer = CircularBuffer{Transition}(CAPACITY)
 
-    train_td3!(actor_struct, critic_struct, env, replay_buffer)
+    train_td3!(actor_struct, critic_struct, env, replay_buffer, LR)
 end
 
 start_time = now()
