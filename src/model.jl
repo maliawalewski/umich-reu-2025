@@ -67,8 +67,8 @@ function build_td3_model(env::Environment)
 
     actor = Flux.Chain(LSTM(((env.num_vars * env.num_terms) + 1) * env.num_vars => env.num_vars), sigmoid)
 
-    critic_1 = Flux.Chain(Dense(2 * env.num_vars, 256, relu), Dense(256, 256, relu), Dense(256, 1))
-    critic_2 = Flux.Chain(Dense(2 * env.num_vars, 256, relu), Dense(256, 256, relu), Dense(256, 1))
+    critic_1 = Flux.Chain(Dense(((env.num_vars * env.num_terms) + 2) * env.num_vars, 256, relu), Dense(256, 256, relu), Dense(256, 1))
+    critic_2 = Flux.Chain(Dense(((env.num_vars * env.num_terms) + 2) * env.num_vars, 256, relu), Dense(256, 256, relu), Dense(256, 1))
 
     actor_target = deepcopy(actor)
     critic_1_target = deepcopy(critic_1)
@@ -103,7 +103,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         t = 0
         episode_loss = []
 
-        while !done # check it out 
+        while !done
             epsilon = randn() * STD
             data = env.monomial_matrix
             matrix = hcat([reduce(hcat, group) for group in data]...)
@@ -118,7 +118,6 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             action = vec(Float32.(actor.actor(actor_input) .+ epsilon))
             println(size(action))
             println(action)
-
 
             basis = act!(env, action)
 
@@ -198,8 +197,6 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             t += 1
 
         end
-
-        
 
         if length(episode_loss) != 0
             avg_loss = mean(episode_loss)
