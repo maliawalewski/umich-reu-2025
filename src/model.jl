@@ -6,20 +6,24 @@ using Optimisers
 using Plots
 include("environment.jl")
 
+# TD3 parameters
 CAPACITY = 1_000_000
-EPISODES = 10_000 # we want 10-20 ideals computed in 1 episode 
+EPISODES = 10_000
 N_SAMPLES = 100
-GAMMA = 0.99
-TAU = 0.005
-LR = 3e-4
-STD = 0.2
-D = 10 # can change 
-
+GAMMA = 0.99 # Discount factor
+TAU = 0.005 # Soft update parameter
+LR = 3e-4 # Learning rate for actor and critics
+STD = 0.2 # Standard deviation for exploration noise
+D = 10 # Update frequency for target actor and critics 
 
 # Data parameters (used to generate ideal batch)
-NUM_POLYS = 3
 MAX_DEGREE = 4
 MAX_ATTEMPTS = 100
+
+# NN parameters
+CRITIC_HIDDEN_WIDTH = 256
+ACTOR_HIDDEN_WIDTH = 256 
+ACTOR_HIDDEN_DEPTH = 2 # Number of LSTM layers
 
 struct Transition
     s::Vector{Float32}
@@ -67,8 +71,8 @@ function build_td3_model(env::Environment)
 
     actor = Flux.Chain(LSTM(((env.num_vars * env.num_terms) + 1) * env.num_vars => env.num_vars), sigmoid)
 
-    critic_1 = Flux.Chain(Dense(((env.num_vars * env.num_terms) + 2) * env.num_vars, 256, relu), Dense(256, 256, relu), Dense(256, 1))
-    critic_2 = Flux.Chain(Dense(((env.num_vars * env.num_terms) + 2) * env.num_vars, 256, relu), Dense(256, 256, relu), Dense(256, 1))
+    critic_1 = Flux.Chain(Dense(((env.num_vars * env.num_terms) + 2) * env.num_vars, CRITIC_HIDDEN_WIDTH, relu), Dense(CRITIC_HIDDEN_WIDTH, CRITIC_HIDDEN_WIDTH, relu), Dense(CRITIC_HIDDEN_WIDTH, 1))
+    critic_2 = Flux.Chain(Dense(((env.num_vars * env.num_terms) + 2) * env.num_vars, CRITIC_HIDDEN_WIDTH, relu), Dense(CRITIC_HIDDEN_WIDTH, CRITIC_HIDDEN_WIDTH, relu), Dense(CRITIC_HIDDEN_WIDTH, 1))
 
     actor_target = deepcopy(actor)
     critic_1_target = deepcopy(critic_1)
@@ -97,7 +101,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
     for i = 1:EPISODES
         reset_env!(env)
-        fill_ideal_batch(env, NUM_POLYS, MAX_DEGREE, MAX_ATTEMPTS) # fill with random ideals
+        fill_ideal_batch(env, env.num_polys, MAX_DEGREE, MAX_ATTEMPTS) # fill with random ideals
         s = Float32.(state(env))
         done = false
         t = 0

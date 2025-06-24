@@ -2,7 +2,8 @@ using Groebner
 using AbstractAlgebra
 include("data.jl")
 
-ACTION_SCALE = 1e4
+# Scaling parameters
+ACTION_SCALE = 1e4 # Scales action to integers
 
 mutable struct Environment
     num_vars::Int
@@ -16,6 +17,7 @@ mutable struct Environment
     iteration_count::Int # Added
     max_iterations::Int # Added
     num_terms::Int
+    num_polys::Int
     monomial_matrix::Array{Vector{Any}}
 end
 
@@ -34,13 +36,14 @@ function init_environment(;
     iteration_count::Int = 0, # Added
     max_iterations::Int = 5, # Added
     num_terms::Int = num_vars + 3,
-    monomial_matrix::Array{Vector{Any}} = Array{Vector{Any}}(undef, num_vars, num_vars * num_terms), # num_vars = num_polys for now, maybe sub constant later
+    num_polys::Int = num_vars,
+    monomial_matrix::Array{Vector{Any}} = Array{Vector{Any}}(undef, num_polys, num_vars * num_terms),
 )
     @assert num_vars > 0 "Number of variables must be greater than 0."
     @assert delta_bound >= 0.0f0 "Delta noise must be non-negative."
 
     state_i = init_state(num_vars)
-    return Environment(num_vars, delta_bound, state_i, reward, ideal_batch, vars, is_terminated, num_ideals, iteration_count, max_iterations, num_terms, monomial_matrix) # Added
+    return Environment(num_vars, delta_bound, state_i, reward, ideal_batch, vars, is_terminated, num_ideals, iteration_count, max_iterations, num_terms, num_polys, monomial_matrix) # Added
 end
 
 function init_state(num_vars::Int)
@@ -98,14 +101,13 @@ function act!(env::Environment, action::Vector{Float32})
         env.is_terminated = true # Added
     end    # Added
 
-
     return basis_vector
 end
 
 function make_valid_action(env::Environment, raw_action::Vector{Float32})
     # Takes the output of the NN and makes it a valid action
     raw_action = raw_action .+ rand(Float32, env.num_vars) # Add noise to the action
-    min_allowed = max.(env.state .- env.delta_bound, Float32(1/env.num_vars^2))
+    min_allowed = max.(env.state .- env.delta_bound, Float32(1 / env.num_vars^2))
     max_allowed = env.state .+ env.delta_bound
     clamped_action = clamp.(raw_action, min_allowed, max_allowed)
 

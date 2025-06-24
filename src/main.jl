@@ -3,10 +3,16 @@ include("environment.jl")
 include("data.jl")
 include("model.jl")
 
+# Environment parameters
+NUM_VARS = 3
+DELTA_BOUND = 0.01f0 # Max shift from current state
+NUM_POLYS = NUM_VARS # For now, number of polynomials is equal to number of variables
+NUM_IDEALS = 10 # Number of ideals per episode
+NUM_TERMS = NUM_VARS + 3 # Number of terms in each polynomial
+MAX_ITERATIONS = 5 # Maximum iterations per episode (i.e. steps per episode)
+
 function main()
-    num_vars = 3
-    delta_bound = 0.01f0
-    env = init_environment(num_vars = num_vars, delta_bound = delta_bound)
+    env = init_environment(num_vars = NUM_VARS, delta_bound = DELTA_BOUND, num_ideals = NUM_IDEALS, max_iterations = MAX_ITERATIONS, num_terms = NUM_TERMS, num_polys = NUM_POLYS)
 
     actor_struct, critic_struct = build_td3_model(env)
 
