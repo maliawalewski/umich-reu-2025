@@ -71,7 +71,6 @@ function fill_ideal_batch(
 end
 
 function act!(env::Environment, action::Vector{Float32})   
-
     action = make_valid_action(env, action)
     
     env.state = action
@@ -88,14 +87,13 @@ function act!(env::Environment, action::Vector{Float32})
     for i in 1:length(env.ideal_batch)
         ideal = env.ideal_batch[i]
         trace, basis = groebner_learn(ideal, ordering = order)
-
+        
         basis_vector = push!(basis_vector, basis)
         cur_reward = reward(trace)
         total_reward += cur_reward
     end
 
     env.reward = total_reward / Float64(length(env.ideal_batch))
-    # env.is_terminated = true
     env.iteration_count += 1 # Added
     if env.iteration_count >= env.max_iterations # Added
         env.is_terminated = true # Added
@@ -106,7 +104,7 @@ end
 
 function make_valid_action(env::Environment, raw_action::Vector{Float32})
     # Takes the output of the NN and makes it a valid action
-    raw_action = raw_action .+ rand(Float32, env.num_vars) # Add noise to the action
+    raw_action = raw_action .+ rand(Float32, env.num_vars)*(0.2f0) # Add noise to the action
     min_allowed = max.(env.state .- env.delta_bound, Float32(1 / env.num_vars^3))
     max_allowed = env.state .+ env.delta_bound
     clamped_action = clamp.(raw_action, min_allowed, max_allowed)

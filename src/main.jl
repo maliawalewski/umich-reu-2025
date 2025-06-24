@@ -18,6 +18,9 @@ function main()
     ideal = [x^2 + y + z, x + x*y^2 + z^3, x^3*y + x*y + y*z^2]
     # END TESTING FIXED IDEAL
 
+    trace, basis = groebner_learn(ideal, ordering = DegRevLex(x,y,z))
+    println("Grevlex reward: ", reward(trace))
+
     env = init_environment(num_vars = NUM_VARS, delta_bound = DELTA_BOUND, num_ideals = NUM_IDEALS, max_iterations = MAX_ITERATIONS, num_terms = NUM_TERMS, num_polys = NUM_POLYS)
 
     actor_struct, critic_struct = build_td3_model(env)

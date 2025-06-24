@@ -4,16 +4,17 @@ using ReinforcementLearning
 using Statistics
 using Optimisers
 using Plots
+using LinearAlgebra
 include("environment.jl")
 
 # TD3 parameters
 CAPACITY = 1_000_000
-EPISODES = 1_000
+EPISODES = 5_000
 N_SAMPLES = 100
 GAMMA = 0.99 # Discount factor
 TAU = 0.005 # Soft update parameter
-LR = 3e-4 # Learning rate for actor and critics
-STD = 0.2 # Standard deviation for exploration noise
+LR = 1e-3 # Learning rate for actor and critics
+STD = 0.002 # Standard deviation for exploration noise
 D = 10 # Update frequency for target actor and critics 
 
 # Data parameters (used to generate ideal batch)
@@ -80,6 +81,8 @@ function build_td3_model(env::Environment)
     push!(actor_layers, sigmoid)
 
     actor = Flux.Chain(actor_layers...)
+    
+    actor = Flux.Chain(Dense(((env.num_vars * env.num_terms) + 1) * env.num_vars, CRITIC_HIDDEN_WIDTH, relu), Dense(CRITIC_HIDDEN_WIDTH, CRITIC_HIDDEN_WIDTH, relu), Dense(CRITIC_HIDDEN_WIDTH, env.num_vars, sigmoid))
 
     critic_1 = Flux.Chain(Dense(((env.num_vars * env.num_terms) + 2) * env.num_vars, CRITIC_HIDDEN_WIDTH, relu), Dense(CRITIC_HIDDEN_WIDTH, CRITIC_HIDDEN_WIDTH, relu), Dense(CRITIC_HIDDEN_WIDTH, 1))
     critic_2 = Flux.Chain(Dense(((env.num_vars * env.num_terms) + 2) * env.num_vars, CRITIC_HIDDEN_WIDTH, relu), Dense(CRITIC_HIDDEN_WIDTH, CRITIC_HIDDEN_WIDTH, relu), Dense(CRITIC_HIDDEN_WIDTH, 1))
@@ -108,6 +111,8 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
     losses = []
     rewards = []
     actions_taken = []
+    losses_1 = []
+    losses_2 = []
 
     for i = 1:EPISODES
         reset_env!(env)
@@ -135,6 +140,8 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             matrix = hcat([reduce(hcat, group) for group in env.monomial_matrix]...)
             s_input = hcat(matrix, s)
             s_input = reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1))
+            # println("S: ", s)
+            # println("NN OUTPUT: ", actor.actor(s_input))
             action = vec(Float32.(actor.actor(s_input) .+ epsilon))
 
             basis = act!(env, action)
@@ -173,7 +180,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             s_next_input_batch = hcat([b.s_next_input !== nothing ? b.s_next_input : zeros(Float32, ((env.num_vars * env.num_terms) + 1) * env.num_vars) for b in batch]...,)
             not_done = reshape(Float32.(getfield.(batch, :s_next_input) .!== nothing), 1, :)
 
-            epsilon = clamp.(randn(1, N_SAMPLES) * STD, -0.5f0, 0.5f0)
+            epsilon = clamp.(randn(1, N_SAMPLES) * STD, -0.005f0, 0.005f0)
 
             target_action = actor.actor_target(s_next_input_batch) .+ epsilon
 
@@ -188,11 +195,13 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             min_q = min.(critic_1_target_val, critic_2_target_val)
 
             y = r_batch .+ GAMMA .* not_done .* min_q
-
+            
             loss1, back1 = Flux.withgradient(critic.critic_1) do model
                 pred = model(vcat(s_input_batch, a_batch))
                 mean((pred .- y) .^ 2)
             end
+
+            push!(losses_1, loss1)
 
             Flux.update!(critic.critic_1_opt_state, critic.critic_1, back1[1])
 
@@ -200,6 +209,8 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
                 pred = model(vcat(s_input_batch, a_batch))
                 mean((pred .- y) .^ 2)
             end
+
+            push!(losses_2, loss2)
 
             Flux.update!(critic.critic_2_opt_state, critic.critic_2, back2[1])
 
@@ -226,7 +237,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         if length(episode_loss) != 0
             avg_loss = mean(episode_loss)
             push!(losses, avg_loss)
-            if i % 10 == 0
+            if i % 100 == 0
                 println("Episode: $i, Action Taken: ", actions_taken[i], " Loss: $avg_loss, Reward: ", env.reward)
                 println()
             end
@@ -243,7 +254,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         marker = false,
         legend = :topright)
 
-    savefig(loss_plot, "loss_plot.png")
+    savefig(loss_plot, "loss_plot.pdf")
 
     episodes2 = 1:length(rewards)
     reward_plot = plot(episodes2, rewards,
@@ -255,7 +266,31 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         marker = false,
         legend = :topright)
 
-    savefig(reward_plot, "reward_plot.png")
+    savefig(reward_plot, "reward_plot.pdf")
+
+    episodes3 = 1:length(losses_1)
+    loss_plot = plot(episodes3, losses_1,
+        title = "Critic1 loss plot",
+        xlabel = "Episode",
+        ylabel = "Loss",
+        label = "Loss",
+        lw = 1,
+        marker = false,
+        legend = :topright)
+
+    savefig(loss_plot, "critic_1_loss_plot.pdf")
+
+    episodes4 = 1:length(losses_2)
+    loss_plot = plot(episodes4, losses_2,
+        title = "Critic2 loss plot",
+        xlabel = "Episode",
+        ylabel = "Loss",
+        label = "Loss",
+        lw = 1,
+        marker = false,
+        legend = :topright)
+
+    savefig(loss_plot, "critic_2_loss_plot.pdf")
 end
 
 function soft_update!(target, policy)
