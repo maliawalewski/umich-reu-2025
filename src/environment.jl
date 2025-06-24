@@ -87,10 +87,10 @@ function act!(env::Environment, action::Vector{Float32})
     for i in 1:length(env.ideal_batch)
         ideal = env.ideal_batch[i]
         trace, basis = groebner_learn(ideal, ordering = order)
+        baseline_trace, baseline_basis = groebner_learn(ideal, ordering = DegRevLex())
         
         basis_vector = push!(basis_vector, basis)
-        cur_reward = reward(trace)
-        total_reward += cur_reward
+        total_reward += (reward(trace) - reward(baseline_trace))
     end
 
     env.reward = total_reward / Float64(length(env.ideal_batch))
