@@ -1,7 +1,7 @@
 using Groebner, AbstractAlgebra, Statistics, Dates
 include("environment.jl")
 include("data.jl")
-include("model.jl")
+include("model.jl") 
 
 # Environment parameters
 NUM_VARS = 3

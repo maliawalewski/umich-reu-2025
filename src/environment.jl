@@ -71,7 +71,7 @@ function fill_ideal_batch(
 end
 
 function act!(env::Environment, action::Vector{Float32})   
-    action = make_valid_action(env, action)
+    action = make_valid_action(env, env.state, action)
     
     env.state = action
 
@@ -102,16 +102,15 @@ function act!(env::Environment, action::Vector{Float32})
     return basis_vector
 end
 
-function make_valid_action(env::Environment, raw_action::Vector{Float32})
+function make_valid_action(env::Environment, state::Vector{Float32}, raw_action::Vector{Float32})
     # Takes the output of the NN and makes it a valid action
-    raw_action = raw_action .+ rand(Float32, env.num_vars)*(0.2f0) # Add noise to the action
-    min_allowed = max.(env.state .- env.delta_bound, Float32(1 / env.num_vars^3))
-    max_allowed = env.state .+ env.delta_bound
+    min_allowed = max.(state .- env.delta_bound, Float32(1 / env.num_vars^3))
+    max_allowed = min.(state .+ env.delta_bound, 1f0)
     clamped_action = clamp.(raw_action, min_allowed, max_allowed)
+    # TODO: ASK ALPEREN - TEMPORARILY NOT NORMALIZING ACTIONS
+    # action = clamped_action ./ sum(clamped_action)  # Normalize action to ensure it sums to 1
 
-    action = clamped_action ./ sum(clamped_action)  # Normalize action to ensure it sums to 1
-
-    return action
+    return clamped_action
 end
 
 function in_action_space(action::Vector{Float32}, env::Environment)

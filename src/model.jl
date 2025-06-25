@@ -6,10 +6,11 @@ using Optimisers
 using Plots
 using LinearAlgebra
 include("environment.jl")
+plotlyjs()
 
 # TD3 parameters
 CAPACITY = 1_000_000
-EPISODES = 3_000
+EPISODES = 1000
 N_SAMPLES = 100
 GAMMA = 0.99 # Discount factor
 TAU = 0.005 # Soft update parameter
@@ -162,8 +163,12 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             done = is_terminated(env)
             s_next = done ? nothing : s_next
             s_next_input = done ? nothing : s_next_input
+            
 
-            push!(replay_buffer, Transition(s, action, r, s_next, s_input, s_next_input))
+            # TODO: ASK ALPEREN ABOUT THIS
+            if !done
+                push!(replay_buffer, Transition(s, action, r, s_next, s_input, s_next_input)) # STORE VALID ACTIONS
+            end
 
             s = s_next === nothing ? s : s_next
             s_input = s_next_input === nothing ? s_input : s_next_input
@@ -187,11 +192,17 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             epsilon = clamp.(randn(1, N_SAMPLES) * STD, -0.005f0, 0.005f0)
 
             target_action = actor.actor_target(s_next_input_batch) .+ epsilon
-
+            
             target_action = Float32.(target_action)
-            cols_as_vectors = [Vector{Float32}(col) for col in eachcol(target_action)]
-            target_action = [make_valid_action(env, col) for col in cols_as_vectors]
-            target_action = reduce(hcat, target_action)
+
+            # Clip target_action to be valid with respect to s_next_batch
+            for i in 1:N_SAMPLES
+                # println("S_next: ", s_next_batch[:, i])
+                # println("Target action: ", target_action[:, i])
+                # println("Calling make_valid_action")
+                target_action[:, i] = make_valid_action(env, s_next_batch[:, i], target_action[:, i])
+                # println("Clipped target action: ", target_action[:, i])
+            end
 
             critic_1_target_val = critic.critic_1_target(vcat(s_next_input_batch, target_action))
             critic_2_target_val = critic.critic_2_target(vcat(s_next_input_batch, target_action))
@@ -218,14 +229,17 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
             Flux.update!(critic.critic_2_opt_state, critic.critic_2, back2[1])
 
+            # TODO: t is only updating once every episode fix to update every few episodes
             if t % D == 0
                 actor_loss, back = Flux.withgradient(actor.actor) do model
                     a_pred = model(s_input_batch)
+                    # CRITIC NEEDS TO SEE CLIPPED ACTION
                     q_val = critic.critic_1(vcat(s_input_batch, a_pred))
                     -mean(q_val)
                 end
 
                 push!(episode_loss, actor_loss)
+
                 grads = back[1]
                 Flux.update!(actor.actor_opt_state, actor.actor, grads)
 
@@ -264,7 +278,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         marker = false,
         legend = :topright)
 
-    savefig(loss_plot, "loss_plot.pdf")
+    savefig(loss_plot, "loss_plot.html")
 
     episodes2 = 1:length(rewards)
     reward_plot = plot(episodes2, rewards,
@@ -276,7 +290,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         marker = false,
         legend = :topright)
 
-    savefig(reward_plot, "reward_plot.pdf")
+    savefig(reward_plot, "reward_plot.html")
 
     episodes3 = 1:length(losses_1)
     loss_plot = plot(episodes3, losses_1,
@@ -288,7 +302,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         marker = false,
         legend = :topright)
 
-    savefig(loss_plot, "critic_1_loss_plot.pdf")
+    savefig(loss_plot, "critic_1_loss_plot.html")
 
     episodes4 = 1:length(losses_2)
     loss_plot = plot(episodes4, losses_2,
@@ -300,7 +314,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         marker = false,
         legend = :topright)
 
-    savefig(loss_plot, "critic_2_loss_plot.pdf")
+    savefig(loss_plot, "critic_2_loss_plot.html")
 end
 
 function soft_update!(target, policy)
