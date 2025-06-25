@@ -17,7 +17,7 @@ TAU = 0.005 # Soft update parameter
 LR = 1e-2 # Learning rate for actor and critics
 MIN_LR = 1e-5 # Minimum Learning Rate
 LR_DECAY = 4.95e-06 # LR decay Rate
-STD = 0.002 # Standard deviation for exploration noise
+STD = 0.2 # Standard deviation for exploration noise
 D = 10 # Update frequency for target actor and critics 
 
 # Data parameters (used to generate ideal batch)
@@ -148,6 +148,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             # println("S: ", s)
             # println("NN OUTPUT: ", actor.actor(s_input))
             action = vec(Float32.(actor.actor(s_input) .+ epsilon))
+            action_valid = make_valid_action(env, s, action) # To store valid action in replay buffer
 
             basis = act!(env, action)
 
@@ -167,7 +168,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
             # TODO: ASK ALPEREN ABOUT THIS
             if !done
-                push!(replay_buffer, Transition(s, action, r, s_next, s_input, s_next_input)) # STORE VALID ACTIONS
+                push!(replay_buffer, Transition(s, action_valid, r, s_next, s_input, s_next_input)) # STORE VALID ACTIONS
             end
 
             s = s_next === nothing ? s : s_next
@@ -233,7 +234,6 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             if t % D == 0
                 actor_loss, back = Flux.withgradient(actor.actor) do model
                     a_pred = model(s_input_batch)
-                    # CRITIC NEEDS TO SEE CLIPPED ACTION
                     q_val = critic.critic_1(vcat(s_input_batch, a_pred))
                     -mean(q_val)
                 end
