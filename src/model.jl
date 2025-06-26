@@ -139,6 +139,10 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         done = false
         t = 0
         episode_loss = []
+        critic_1_episode_loss = []
+        critic_2_episode_loss = []
+        episode_rewards = []
+        episode_actions = []
 
         while !done
             epsilon = randn() * STD
@@ -156,14 +160,14 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             s_next_input = hcat(matrix, s_next)
             s_next_input = reshape(s_next_input, (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1))
 
-            push!(actions_taken, s_next)
-
             r = Float32(env.reward)
-            push!(rewards, r)
+            push!(episode_rewards, r)
 
             done = is_terminated(env)
             s_next = done ? nothing : s_next
             s_next_input = done ? nothing : s_next_input
+
+            push!(episode_actions, s_next)
             
 
             # TODO: ASK ALPEREN ABOUT THIS
@@ -196,13 +200,9 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             
             target_action = Float32.(target_action)
 
-            # Clip target_action to be valid with respect to s_next_batch
+            # TODO: Unclip - critics cannot take in clipped action because of backpropogation
             for i in 1:N_SAMPLES
-                # println("S_next: ", s_next_batch[:, i])
-                # println("Target action: ", target_action[:, i])
-                # println("Calling make_valid_action")
                 target_action[:, i] = make_valid_action(env, s_next_batch[:, i], target_action[:, i])
-                # println("Clipped target action: ", target_action[:, i])
             end
 
             critic_1_target_val = critic.critic_1_target(vcat(s_next_input_batch, target_action))
@@ -217,7 +217,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
                 mean((pred .- y) .^ 2)
             end
 
-            push!(losses_1, loss1)
+            push!(critic_1_episode_loss, loss1)
 
             Flux.update!(critic.critic_1_opt_state, critic.critic_1, back1[1])
 
@@ -226,7 +226,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
                 mean((pred .- y) .^ 2)
             end
 
-            push!(losses_2, loss2)
+            push!(critic_2_episode_loss, loss2)
 
             Flux.update!(critic.critic_2_opt_state, critic.critic_2, back2[1])
 
@@ -253,12 +253,23 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         end
 
         if length(episode_loss) != 0
-            avg_loss = mean(episode_loss)
-            push!(losses, avg_loss)
-            if i % 100 == 0
-                println("Episode: $i, Action Taken: ", actions_taken[i], " Loss: $avg_loss, Reward: ", env.reward)
-                println()
-            end
+            push!(losses, mean(episode_loss))
+        end
+
+        if length(critic_1_episode_loss) != 0
+            push!(losses_1, mean(critic_1_episode_loss))
+            push!(losses_2, mean(critic_2_episode_loss))
+        end
+
+        if length(episode_rewards) != 0
+            push!(rewards, mean(episode_rewards))
+            push!(actions_taken, mean(episode_actions))
+        end
+
+        # TODO: fix print statements to line up with correct losses, don't print avgs
+        if i % 100 == 0
+            println("Episode: $i, Action Taken: ", actions_taken[i], ", Loss: ", losses[i], " Reward: ", reward[i]) # actor losses don't line up
+            println()
         end
 
         current_lr = max(MIN_LR, current_lr - LR_DECAY) 

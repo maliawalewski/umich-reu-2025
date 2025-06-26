@@ -105,7 +105,7 @@ end
 function make_valid_action(env::Environment, state::Vector{Float32}, raw_action::Vector{Float32})
     # Takes the output of the NN and makes it a valid action
     min_allowed = max.(state .- env.delta_bound, Float32(1 / env.num_vars^3))
-    max_allowed = min.(state .+ env.delta_bound, 1f0)
+    max_allowed = min.(state .+ env.delta_bound, 1f0) # Clip to 1 temporarily
     clamped_action = clamp.(raw_action, min_allowed, max_allowed)
     # TODO: ASK ALPEREN - TEMPORARILY NOT NORMALIZING ACTIONS
     # action = clamped_action ./ sum(clamped_action)  # Normalize action to ensure it sums to 1
