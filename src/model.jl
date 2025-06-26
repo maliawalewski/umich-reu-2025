@@ -10,14 +10,14 @@ plotlyjs()
 
 # TD3 parameters
 CAPACITY = 1_000_000
-EPISODES = 3_000
+EPISODES = 5_000
 N_SAMPLES = 100
 GAMMA = 0.99 # Discount factor
 TAU = 0.005 # Soft update parameter
 LR = 1e-2 # Learning rate for actor and critics
 MIN_LR = 1e-5 # Minimum Learning Rate
 LR_DECAY = 4.95e-06 # LR decay Rate
-STD = 0.2 # Standard deviation for exploration noise
+STD = 0.02 # Standard deviation for exploration noise
 D = 2 # Update frequency for target actor and critics 
 
 # Data parameters (used to generate ideal batch)
@@ -138,38 +138,37 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
         s = Float32.(state(env))
         done = false
-        episode_loss = []
-        critic_1_episode_loss = []
-        critic_2_episode_loss = []
-        episode_rewards = []
-        episode_actions = []
+        # episode_loss = []
+        # # critic_1_episode_loss = []
+        # # critic_2_episode_loss = []
+        # # episode_rewards = []
+        # # episode_actions = []
 
         while !done
-            epsilon = randn() * STD
+            epsilon = randn(env.num_vars, 1) .* STD
             matrix = hcat([reduce(hcat, group) for group in env.monomial_matrix]...)
             s_input = hcat(matrix, s)
             s_input = reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1))
 
-            action = vec(Float32.(actor.actor(s_input) .+ epsilon))
+            action = vec(Float32.(actor.actor(s_input) + epsilon))
 
             basis = act!(env, action)
 
             s_next = Float32.(state(env))
+            push!(actions_taken, s_next)
+
             s_next_input = hcat(matrix, s_next)
             s_next_input = reshape(s_next_input, (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1))
 
             r = Float32(env.reward)
-            push!(episode_rewards, r)
+            push!(rewards, r)
 
             done = is_terminated(env)
             s_next = done ? nothing : s_next
             s_next_input = done ? nothing : s_next_input
 
-            push!(episode_actions, s_next)
-
-            # TODO: ASK ALPEREN ABOUT THIS
             if !done
-                push!(replay_buffer, Transition(s, action, r, s_next, s_input, s_next_input)) # All are raw outputs (no valid actions)
+                push!(replay_buffer, Transition(s, action, r, s_next, s_input, s_next_input)) # All actions are raw outputs (no valid actions)
             end
 
             s = s_next === nothing ? s : s_next
@@ -209,7 +208,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
                 mean((pred .- y) .^ 2)
             end
 
-            push!(critic_1_episode_loss, loss1)
+            push!(losses_1, loss1)
 
             Flux.update!(critic.critic_1_opt_state, critic.critic_1, back1[1])
 
@@ -218,7 +217,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
                 mean((pred .- y) .^ 2)
             end
 
-            push!(critic_2_episode_loss, loss2)
+            push!(losses_2, loss2)
 
             Flux.update!(critic.critic_2_opt_state, critic.critic_2, back2[1])
 
@@ -230,7 +229,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
                     -mean(q_val)
                 end
 
-                push!(episode_loss, actor_loss)
+                push!(losses, actor_loss)
 
                 grads = back[1]
                 Flux.update!(actor.actor_opt_state, actor.actor, grads)
@@ -242,25 +241,34 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
         end
 
-        if length(episode_loss) != 0
-            push!(losses, mean(episode_loss))
-        end
+        # if length(episode_loss) != 0
+        #     push!(losses, mean(episode_loss))
+        # end
 
-        if length(critic_1_episode_loss) != 0
-            push!(losses_1, mean(critic_1_episode_loss))
-            push!(losses_2, mean(critic_2_episode_loss))
-        end
+        # # if length(critic_1_episode_loss) != 0
+        # #     # push!(losses_1, mean(critic_1_episode_loss))
+        # #     # push!(losses_2, mean(critic_2_episode_loss))
+        # # end
 
-        if length(episode_rewards) != 0
-            push!(rewards, mean(episode_rewards))
+        # if length(episode_actions) != 0
+        #     avg_action = zeros(Float32, env.num_vars)
+        #     for epoch in 1:(length(episode_actions) - 1)
+        #         avg_action = avg_action .+ episode_actions[epoch]
+        #         avg_action = avg_action ./ length(episode_actions)
+        #     end
+        #     push!(actions_taken, avg_action)
+        # end
 
-            avg_action = zeros(Float32, env.num_vars)
-            for epoch in 1:(length(episode_actions) - 1)
-                avg_action = avg_action .+ episode_actions[epoch]
-                avg_action = avg_action ./ length(episode_actions)
-            end
-            push!(actions_taken, avg_action)
-        end
+        # if length(episode_rewards) != 0
+        #     # push!(rewards, mean(episode_rewards))
+
+        #     avg_action = zeros(Float32, env.num_vars)
+        #     for epoch in 1:(length(episode_actions) - 1)
+        #         avg_action = avg_action .+ episode_actions[epoch]
+        #         avg_action = avg_action ./ length(episode_actions)
+        #     end
+        #     push!(actions_taken, avg_action)
+        # end
 
         if i % 100 == 0
             println("Episode: $i, Action Taken: ", actions_taken[i],  " Reward: ", rewards[i]) # Losses get updated every D episodes

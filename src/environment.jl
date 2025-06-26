@@ -70,10 +70,10 @@ function fill_ideal_batch(
     env.monomial_matrix = monomial_matrix
 end
 
-function act!(env::Environment, raw_action::Vector{Float32})   
-    action = make_valid_action(env, env.state, raw_action) # Make valid action from NN output and previous state
-
-    env.state = raw_action # Update state to be RAW action from NN
+function act!(env::Environment, raw_action::Vector{Float32}) 
+    # action = make_valid_action(env, env.state, raw_action) # Make valid action from NN output and previous state
+    action = max.(raw_action, 0.0f0) # Ensure action is non-negative
+    env.state = action 
 
     action = Int.(round.(ACTION_SCALE * action))
 
@@ -105,12 +105,12 @@ end
 function make_valid_action(env::Environment, state::Vector{Float32}, raw_action::Vector{Float32})
     # Takes the output of the NN and makes it a valid action
     min_allowed = max.(state .- env.delta_bound, Float32(1 / env.num_vars^3))
-    max_allowed = min.(state .+ env.delta_bound, 1f0) # Clip to 1 temporarily
+    max_allowed = state .+ env.delta_bound
     clamped_action = clamp.(raw_action, min_allowed, max_allowed)
-    # TODO: ASK ALPEREN - TEMPORARILY NOT NORMALIZING ACTIONS
-    # action = clamped_action ./ sum(clamped_action)  # Normalize action to ensure it sums to 1
 
-    return clamped_action
+    action = clamped_action ./ sum(clamped_action)  # Normalize action to ensure it sums to 1
+
+    return action
 end
 
 function in_action_space(action::Vector{Float32}, env::Environment)
@@ -137,7 +137,7 @@ function in_state_space(x::Vector{Float32}, env::Environment)
     # Checks if vector is within state space 
     @assert length(x) == env.num_vars "State vector must have the same number of variables as the environment."
     return all(x .>= 0.0f0) && all(x .<= 1.0f0) # all elements are non-negative and less than or equal to 1
-    # abs(sum(x) - 1.0f0) < 1e-6 # NO LONGER TRUE
+    # abs(sum(x) - 1.0f0) < 1e-6
 end
 
 function state(env::Environment)
