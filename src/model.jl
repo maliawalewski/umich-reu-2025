@@ -6,6 +6,7 @@ using Optimisers
 using Plots
 using LinearAlgebra
 include("environment.jl")
+include("utils.jl")
 # plotlyjs()
 
 # TD3 parameters
@@ -20,6 +21,14 @@ LR_DECAY = (LR - MIN_LR) / (EPISODES - (EPISODES / 10)) # LR decay Rate (edit so
 STD = 0.002 # Standard deviation for exploration noise
 D = 2 # Update frequency for target actor and critics 
 
+# Prioritized Experience Replay Buffer parameters
+CAPACITY = 1_000_000
+N_SAMPLES = 100
+ALPHA = 0.6f0 
+BETA = 0.4f0 
+BETA_INCREMENT = 0.0001f0
+EPS = 0.01f0 
+
 # Data parameters (used to generate ideal batch)
 MAX_DEGREE = 4
 MAX_ATTEMPTS = 100
@@ -29,14 +38,15 @@ CRITIC_HIDDEN_WIDTH = 256
 ACTOR_HIDDEN_WIDTH = 256 
 ACTOR_DEPTH = 2 # Number of LSTM layers
 
-struct Transition
-    s::Vector{Float32}
-    a::Vector{Float32}
-    r::Float32
-    s_next::Union{Vector{Float32},Nothing}
-    s_input::Array{Float32}
-    s_next_input::Union{Array{Float32},Nothing}
-end
+# NOTE: this is now defined in utils.jl
+# struct Transition
+    # s::Vector{Float32}
+    # a::Vector{Float32}
+    # r::Float32
+    # s_next::Union{Vector{Float32},Nothing}
+    # s_input::Array{Float32}
+    # s_next_input::Union{Array{Float32},Nothing}
+# end
 
 struct Actor
     actor::Flux.Chain
@@ -109,7 +119,7 @@ function build_td3_model(env::Environment)
     return actor_struct, critic_struct
 end
 
-function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buffer::CircularBuffer{Transition}, initial_lr::Float64)
+function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buffer::PrioritizedReplayBuffer, initial_lr::Float64)
 
     losses = []
     rewards = []
@@ -173,7 +183,8 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             s_next_input = done ? nothing : s_next_input
 
             if !done
-                push!(replay_buffer, Transition(s, action, r, s_next, s_input, s_next_input)) # All actions are raw outputs (no valid actions)
+                # push!(replay_buffer, Transition(s, action, r, s_next, s_input, s_next_input)) # All actions are raw outputs (no valid actions)
+                add_experience!(replay_buffer, Transition(s, action, r, s_next, s_input, s_next_input), abs(r))
             end
 
             s = s_next === nothing ? s : s_next
@@ -184,7 +195,9 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
                 continue
             end
 
-            batch = rand(replay_buffer, N_SAMPLES)
+            # batch = rand(replay_buffer, N_SAMPLES)
+            batch, indices, weights = sample(replay_buffer)
+
             s_batch = hcat([b.s for b in batch]...)
             a_batch = hcat([b.a for b in batch]...)
             r_batch = hcat([b.r for b in batch]...)
@@ -207,10 +220,12 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             min_q = min.(critic_1_target_val, critic_2_target_val)
 
             y = r_batch .+ GAMMA .* not_done .* min_q
+            pred = critic.critic_1(vcat(s_input_batch, a_batch))
+            errors = vec(Float32.(abs.(pred .- y)))
+            update_priorities!(replay_buffer, indices, errors)
             
             loss1, back1 = Flux.withgradient(critic.critic_1) do model
-                pred = model(vcat(s_input_batch, a_batch))
-                mean((pred .- y) .^ 2)
+                mean((model(vcat(s_input_batch, a_batch)) .- y) .^ 2)
             end
 
             push!(losses_1, loss1)

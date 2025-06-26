@@ -4,10 +4,12 @@ using StatsBase
 # Reference: https://github.com/Ullar-Kask/TD3-PER/blob/master/Pytorch/src/PER.py
 
 struct Transition
-    s::Array{Float32}
+    s::Vector{Float32}
     a::Vector{Float32}
     r::Float32
-    s_next::Union{Array{Float32}, Nothing}
+    s_next::Union{Vector{Float32},Nothing}
+    s_input::Array{Float32}
+    s_next_input::Union{Array{Float32},Nothing}
 end
 
 mutable struct PrioritizedReplayBuffer
@@ -33,6 +35,10 @@ function PrioritizedReplayBuffer(capacity::Int64, batch_size::Int64, alpha::Floa
     return PrioritizedReplayBuffer(capacity, batch_size, alpha, beta, beta_increment, eps, priorities, experiences, weights_batch, curr_size, curr_idx)
 end
 
+function Base.length(buffer::PrioritizedReplayBuffer)
+    return buffer._curr_size
+end
+
 function add_experience!(buffer::PrioritizedReplayBuffer, experience::Transition, td_error::Float32)
     @assert td_error + buffer.eps > 0 "td_error + epsilon must be greater than 0"
     priority = (td_error + buffer.eps) ^ buffer.alpha
@@ -52,18 +58,17 @@ function update_priorities!(buffer::PrioritizedReplayBuffer, indices::Vector{Int
 end
 
 function StatsBase.sample(buffer::PrioritizedReplayBuffer)
-    @assert buffer.curr_size >= buffer.batch_size "unable to return " + buffer.batch_size + " samples from replay buffer of size " + buffer.curr_size
+    @assert buffer._curr_size >= buffer.batch_size "unable to return $(buffer.batch_size) samples from replay buffer of size $(buffer._curr_size)"
     sample_indices = sample(1:buffer._curr_size, StatsBase.Weights(buffer._priorities[1:buffer._curr_size]), buffer.batch_size, replace=false)
     return get_batch(buffer, sample_indices)
 end
 
 function get_batch(buffer::PrioritizedReplayBuffer, sample_indices::Vector{Int64})
-    # TODO: do we want to sample without replacement? 
-    @assert length(sample_indices) == length(buffer.batch_size) "length of sample_indices does not match batch_size"
+    @assert length(sample_indices) == buffer.batch_size "length of sample_indices does not match batch_size"
     samples = buffer._experiences[sample_indices]
-    buffer._weights_batch[sample_indices] = buffer._priorities[sample_indices]
-    p = buffer._weights_batch ./ sum(buffer._priorities[1:buffer._curr_size])
-    weights = (r._curr_size * p) .^ (-buffer.beta)
-    buffer.beta = min(1, buffer.beta + buffer.beta_increment)
-    return samples, weights
+    priorities = buffer._priorities[sample_indices]
+    p = priorities ./ sum(buffer._priorities[1:buffer._curr_size])
+    weights = (buffer._curr_size * p) .^ (-buffer.beta)
+    buffer.beta = min(1f0, buffer.beta + buffer.beta_increment)
+    return samples, sample_indices, weights
 end
