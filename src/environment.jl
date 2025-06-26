@@ -70,10 +70,10 @@ function fill_ideal_batch(
     env.monomial_matrix = monomial_matrix
 end
 
-function act!(env::Environment, action::Vector{Float32})   
-    action = make_valid_action(env, env.state, action)
-    
-    env.state = action
+function act!(env::Environment, raw_action::Vector{Float32})   
+    action = make_valid_action(env, env.state, raw_action) # Make valid action from NN output and previous state
+
+    env.state = raw_action # Update state to be RAW action from NN
 
     action = Int.(round.(ACTION_SCALE * action))
 
@@ -136,7 +136,8 @@ end
 function in_state_space(x::Vector{Float32}, env::Environment)
     # Checks if vector is within state space 
     @assert length(x) == env.num_vars "State vector must have the same number of variables as the environment."
-    return all(x .>= 0.0f0) && abs(sum(x) - 1.0f0) < 1e-6 # vector sums to 1 and all elements are non-negative
+    return all(x .>= 0.0f0) && all(x .<= 1.0f0) # all elements are non-negative and less than or equal to 1
+    # abs(sum(x) - 1.0f0) < 1e-6 # NO LONGER TRUE
 end
 
 function state(env::Environment)

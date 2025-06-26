@@ -149,10 +149,8 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             matrix = hcat([reduce(hcat, group) for group in env.monomial_matrix]...)
             s_input = hcat(matrix, s)
             s_input = reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1))
-            # println("S: ", s)
-            # println("NN OUTPUT: ", actor.actor(s_input))
+
             action = vec(Float32.(actor.actor(s_input) .+ epsilon))
-            action_valid = make_valid_action(env, s, action) # To store valid action in replay buffer
 
             basis = act!(env, action)
 
@@ -168,11 +166,10 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             s_next_input = done ? nothing : s_next_input
 
             push!(episode_actions, s_next)
-            
 
             # TODO: ASK ALPEREN ABOUT THIS
             if !done
-                push!(replay_buffer, Transition(s, action_valid, r, s_next, s_input, s_next_input)) # STORE VALID ACTIONS
+                push!(replay_buffer, Transition(s, action, r, s_next, s_input, s_next_input)) # All are raw outputs (no valid actions)
             end
 
             s = s_next === nothing ? s : s_next
@@ -194,16 +191,11 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             s_next_input_batch = hcat([b.s_next_input !== nothing ? b.s_next_input : zeros(Float32, ((env.num_vars * env.num_terms) + 1) * env.num_vars) for b in batch]...,)
             not_done = reshape(Float32.(getfield.(batch, :s_next_input) .!== nothing), 1, :)
 
-            epsilon = clamp.(randn(1, N_SAMPLES) * STD, -0.005f0, 0.005f0)
+            epsilon = clamp.(randn(1, N_SAMPLES) * STD, -0.05f0, 0.05f0)
 
             target_action = actor.actor_target(s_next_input_batch) .+ epsilon
             
             target_action = Float32.(target_action)
-
-            # TODO: Unclip - critics cannot take in clipped action because of backpropogation
-            for i in 1:N_SAMPLES
-                target_action[:, i] = make_valid_action(env, s_next_batch[:, i], target_action[:, i])
-            end
 
             critic_1_target_val = critic.critic_1_target(vcat(s_next_input_batch, target_action))
             critic_2_target_val = critic.critic_2_target(vcat(s_next_input_batch, target_action))
