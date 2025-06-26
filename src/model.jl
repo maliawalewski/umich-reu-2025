@@ -6,18 +6,18 @@ using Optimisers
 using Plots
 using LinearAlgebra
 include("environment.jl")
-plotlyjs()
+# plotlyjs()
 
 # TD3 parameters
 CAPACITY = 1_000_000
-EPISODES = 5_000
+EPISODES = 1_000
 N_SAMPLES = 100
 GAMMA = 0.99 # Discount factor
 TAU = 0.005 # Soft update parameter
-LR = 1e-2 # Learning rate for actor and critics
+LR = 1e-3 # Learning rate for actor and critics
 MIN_LR = 1e-5 # Minimum Learning Rate
-LR_DECAY = 4.95e-06 # LR decay Rate
-STD = 0.02 # Standard deviation for exploration noise
+LR_DECAY = (LR - MIN_LR) / (EPISODES - 500) # LR decay Rate (edit so we don't hardcode 50000)
+STD = 0.002 # Standard deviation for exploration noise
 D = 2 # Update frequency for target actor and critics 
 
 # Data parameters (used to generate ideal batch)
@@ -137,6 +137,8 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         # END TESTING FIXED IDEAL
 
         s = Float32.(state(env))
+        # println("Episode $i, ", "State: ", s)
+
         done = false
         # episode_loss = []
         # # critic_1_episode_loss = []
@@ -150,9 +152,12 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             s_input = hcat(matrix, s)
             s_input = reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1))
 
+            # println("Epsilon: ", epsilon)
             action = vec(Float32.(actor.actor(s_input) + epsilon))
+            # println("NN raw output + epsilon: ", action)
 
             basis = act!(env, action)
+            # println("Basis: ", basis)
 
             s_next = Float32.(state(env))
             push!(actions_taken, s_next)
@@ -270,7 +275,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         #     push!(actions_taken, avg_action)
         # end
 
-        if i % 100 == 0
+        if i % 1 == 0
             println("Episode: $i, Action Taken: ", actions_taken[i],  " Reward: ", rewards[i]) # Losses get updated every D episodes
             # ", Loss: ", losses[Int(i / D)],
             println()
@@ -285,15 +290,15 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
     episodes = 1:length(losses)
     loss_plot = plot(episodes, losses,
-        title = "Loss plot",
+        title = "Actor Loss plot",
         xlabel = "Episode",
         ylabel = "Loss",
-        label = "Loss",
+        label = "Actor Loss",
         lw = 1,
         marker = false,
         legend = :topright)
 
-    savefig(loss_plot, "loss_plot.html")
+    savefig(loss_plot, "loss_testplot.pdf")
 
     episodes2 = 1:length(rewards)
     reward_plot = plot(episodes2, rewards,
@@ -305,31 +310,25 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         marker = false,
         legend = :topright)
 
-    savefig(reward_plot, "reward_plot.html")
+    savefig(reward_plot, "reward_testplot.pdf")
 
-    episodes3 = 1:length(losses_1)
-    loss_plot = plot(episodes3, losses_1,
-        title = "Critic1 loss plot",
-        xlabel = "Episode",
-        ylabel = "Loss",
-        label = "Loss",
-        lw = 1,
-        marker = false,
-        legend = :topright)
+    episodes_critic1 = 1:length(losses_1)
+    episodes_critic2 = 1:length(losses_2)
 
-    savefig(loss_plot, "critic_1_loss_plot.html")
+    p = plot([episodes_critic1 episodes_critic2],
+    [losses_1 losses_2],
+    layout = (2, 1),
+    legend = :topright,
+    lw     = 1,
+    marker = false,
+    linecolor = [:purple :blue],
+    xlabel = "Time step",
+    ylabel = "Loss",   
+    label = ["Critic 1 Loss" "Critic 2 Loss"],
+    title  = ["Critic 1" "Critic 2"],
+    )
 
-    episodes4 = 1:length(losses_2)
-    loss_plot = plot(episodes4, losses_2,
-        title = "Critic2 loss plot",
-        xlabel = "Episode",
-        ylabel = "Loss",
-        label = "Loss",
-        lw = 1,
-        marker = false,
-        legend = :topright)
-
-    savefig(loss_plot, "critic_2_loss_plot.html")
+    savefig(p, "critics_loss_subplot.pdf")
 
 end
 

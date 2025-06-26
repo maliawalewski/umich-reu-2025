@@ -3,7 +3,7 @@ using AbstractAlgebra
 include("data.jl")
 
 # Scaling parameters
-ACTION_SCALE = 1e4 # Scales action to integers
+ACTION_SCALE = 1e4 # Scales action to integers 
 
 mutable struct Environment
     num_vars::Int
@@ -71,8 +71,8 @@ function fill_ideal_batch(
 end
 
 function act!(env::Environment, raw_action::Vector{Float32}) 
-    # action = make_valid_action(env, env.state, raw_action) # Make valid action from NN output and previous state
-    action = max.(raw_action, 0.0f0) # Ensure action is non-negative
+    action = make_valid_action(env, env.state, raw_action) # Make valid action from NN output and previous state
+    # action = max.(raw_action, 0.0f0) # Ensure action is non-negative
     env.state = action 
 
     action = Int.(round.(ACTION_SCALE * action))
@@ -87,10 +87,10 @@ function act!(env::Environment, raw_action::Vector{Float32})
     for i in 1:length(env.ideal_batch)
         ideal = env.ideal_batch[i]
         trace, basis = groebner_learn(ideal, ordering = order)
-        baseline_trace, baseline_basis = groebner_learn(ideal, ordering = DegRevLex())
+        # baseline_trace, baseline_basis = groebner_learn(ideal, ordering = DegRevLex())
         
         basis_vector = push!(basis_vector, basis)
-        total_reward += (reward(trace) - reward(baseline_trace))
+        total_reward += (reward(trace)) # - reward(baseline_trace))
     end
 
     env.reward = total_reward / Float64(length(env.ideal_batch))
@@ -152,6 +152,7 @@ end
 function reset_env!(env::Environment)
     # Resets the environment to its initial state
     env.reward = Float64(0.0f0)
+    env.state = init_state(env.num_vars)
     env.ideal_batch = Vector{Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}}()
     env.is_terminated = false
     env.iteration_count = 0 # Added
