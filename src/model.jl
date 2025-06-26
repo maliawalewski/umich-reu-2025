@@ -10,7 +10,7 @@ plotlyjs()
 
 # TD3 parameters
 CAPACITY = 1_000_000
-EPISODES = 1000
+EPISODES = 3_000
 N_SAMPLES = 100
 GAMMA = 0.99 # Discount factor
 TAU = 0.005 # Soft update parameter
@@ -18,7 +18,7 @@ LR = 1e-2 # Learning rate for actor and critics
 MIN_LR = 1e-5 # Minimum Learning Rate
 LR_DECAY = 4.95e-06 # LR decay Rate
 STD = 0.2 # Standard deviation for exploration noise
-D = 10 # Update frequency for target actor and critics 
+D = 2 # Update frequency for target actor and critics 
 
 # Data parameters (used to generate ideal batch)
 MAX_DEGREE = 4
@@ -118,6 +118,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
     losses_2 = []
 
     current_lr = initial_lr
+    t = 0
 
     for i = 1:EPISODES
         reset_env!(env)
@@ -137,7 +138,6 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
         s = Float32.(state(env))
         done = false
-        t = 0
         episode_loss = []
         critic_1_episode_loss = []
         critic_2_episode_loss = []
@@ -230,8 +230,8 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
             Flux.update!(critic.critic_2_opt_state, critic.critic_2, back2[1])
 
-            # TODO: t is only updating once every episode fix to update every few episodes
-            if t % D == 0
+            # Updating every D episodes instead of every D timesteps (changed t to i)
+            if i % D == 0
                 actor_loss, back = Flux.withgradient(actor.actor) do model
                     a_pred = model(s_input_batch)
                     q_val = critic.critic_1(vcat(s_input_batch, a_pred))
@@ -248,8 +248,6 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
                 soft_update!(actor.actor_target, actor.actor)
             end
 
-            t += 1
-
         end
 
         if length(episode_loss) != 0
@@ -263,12 +261,18 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
         if length(episode_rewards) != 0
             push!(rewards, mean(episode_rewards))
-            push!(actions_taken, mean(episode_actions))
+
+            avg_action = zeros(Float32, env.num_vars)
+            for epoch in 1:(length(episode_actions) - 1)
+                avg_action = avg_action .+ episode_actions[epoch]
+                avg_action = avg_action ./ length(episode_actions)
+            end
+            push!(actions_taken, avg_action)
         end
 
-        # TODO: fix print statements to line up with correct losses, don't print avgs
         if i % 100 == 0
-            println("Episode: $i, Action Taken: ", actions_taken[i], ", Loss: ", losses[i], " Reward: ", reward[i]) # actor losses don't line up
+            println("Episode: $i, Action Taken: ", actions_taken[i],  " Reward: ", rewards[i]) # Losses get updated every D episodes
+            # ", Loss: ", losses[Int(i / D)],
             println()
         end
 
@@ -326,6 +330,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         legend = :topright)
 
     savefig(loss_plot, "critic_2_loss_plot.html")
+
 end
 
 function soft_update!(target, policy)
