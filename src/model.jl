@@ -10,13 +10,13 @@ include("environment.jl")
 
 # TD3 parameters
 CAPACITY = 1_000_000
-EPISODES = 1_000
+EPISODES = 10_000
 N_SAMPLES = 100
 GAMMA = 0.99 # Discount factor
-TAU = 0.005 # Soft update parameter
+TAU = 0.05 # Soft update parameter
 LR = 1e-3 # Learning rate for actor and critics
 MIN_LR = 1e-5 # Minimum Learning Rate
-LR_DECAY = (LR - MIN_LR) / (EPISODES - 500) # LR decay Rate (edit so we don't hardcode 50000)
+LR_DECAY = (LR - MIN_LR) / (EPISODES - (EPISODES / 10)) # LR decay Rate (edit so we don't hardcode 50000)
 STD = 0.002 # Standard deviation for exploration noise
 D = 2 # Update frequency for target actor and critics 
 
@@ -275,7 +275,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         #     push!(actions_taken, avg_action)
         # end
 
-        if i % 1 == 0
+        if i % 1001 == 0
             println("Episode: $i, Action Taken: ", actions_taken[i],  " Reward: ", rewards[i]) # Losses get updated every D episodes
             # ", Loss: ", losses[Int(i / D)],
             println()
@@ -291,35 +291,37 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
     episodes = 1:length(losses)
     loss_plot = plot(episodes, losses,
         title = "Actor Loss plot",
-        xlabel = "Episode",
+        xlabel = "Actor Update Step (every $D episodes)",
         ylabel = "Loss",
         label = "Actor Loss",
-        lw = 1,
+        lw = 0.5,
+        linecolor = :red,
         marker = false,
         legend = :topright)
 
-    savefig(loss_plot, "loss_testplot.pdf")
+    savefig(loss_plot, "loss_plot_nobaseline_TAU.pdf")
 
     episodes2 = 1:length(rewards)
     reward_plot = plot(episodes2, rewards,
         title = "Reward plot",
-        xlabel = "Episode",
+        xlabel = "Time step",
         ylabel = "Reward",
         label = "Reward",
-        lw = 1,
+        lw = 0.5,
+        linecolor = :green,
         marker = false,
-        legend = :topright)
+        legend = :bottomright)
 
-    savefig(reward_plot, "reward_testplot.pdf")
+    savefig(reward_plot, "reward_plot_nobaseline_TAU.pdf")
 
     episodes_critic1 = 1:length(losses_1)
     episodes_critic2 = 1:length(losses_2)
 
-    p = plot([episodes_critic1 episodes_critic2],
+    critic_plot = plot([episodes_critic1 episodes_critic2],
     [losses_1 losses_2],
     layout = (2, 1),
     legend = :topright,
-    lw     = 1,
+    lw     = 0.5,
     marker = false,
     linecolor = [:purple :blue],
     xlabel = "Time step",
@@ -328,7 +330,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
     title  = ["Critic 1" "Critic 2"],
     )
 
-    savefig(p, "critics_loss_subplot.pdf")
+    savefig(critic_plot, "critics_loss_nobaseline_TAU.pdf")
 
 end
 
