@@ -11,13 +11,13 @@ include("utils.jl")
 
 # TD3 parameters
 CAPACITY = 1_000_000
-EPISODES = 15_000
+EPISODES = 1_000
 N_SAMPLES = 100
 GAMMA = 0.99 # Discount factor
 TAU = 0.05 # Soft update parameter
 LR = 1e-3 # Learning rate for actor and critics
 MIN_LR = 1e-5 # Minimum Learning Rate
-LR_DECAY = (LR - MIN_LR) / (EPISODES - (EPISODES / 10)) # LR decay Rate (edit so we don't hardcode 50000)
+LR_DECAY = (LR - MIN_LR) / (EPISODES - (EPISODES / 10)) # LR decay Rate (edit so we don't hardcode 5000)
 STD = 0.002 # Standard deviation for exploration noise
 D = 2 # Update frequency for target actor and critics 
 
@@ -141,6 +141,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
     
     env.variables = vars
     env.monomial_matrix = monomial_matrix
+    println("Monomial_matrix: ", env.monomial_matrix)
   
     for i = 1:EPISODES
         reset_env!(env)
@@ -172,7 +173,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             # println("NN raw output + epsilon: ", action)
 
             basis = act!(env, action)
-            # println("Basis: ", basis)
+            # println("Basis 1 size: ", length(basis[1]), "l Basis 3 size: ", length(basis[3]), ", Basis 7 size: ", length(basis[7]))
 
             s_next = Float32.(state(env))
             push!(actions_taken, s_next)
@@ -200,7 +201,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
                 continue
             end
 
-            println("sampling now")
+            # println("sampling now")
 
             # batch = rand(replay_buffer, N_SAMPLES)
             batch, indices, weights = sample(replay_buffer)
@@ -268,37 +269,8 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
         end
 
-        # if length(episode_loss) != 0
-        #     push!(losses, mean(episode_loss))
-        # end
-
-        # # if length(critic_1_episode_loss) != 0
-        # #     # push!(losses_1, mean(critic_1_episode_loss))
-        # #     # push!(losses_2, mean(critic_2_episode_loss))
-        # # end
-
-        # if length(episode_actions) != 0
-        #     avg_action = zeros(Float32, env.num_vars)
-        #     for epoch in 1:(length(episode_actions) - 1)
-        #         avg_action = avg_action .+ episode_actions[epoch]
-        #         avg_action = avg_action ./ length(episode_actions)
-        #     end
-        #     push!(actions_taken, avg_action)
-        # end
-
-        # if length(episode_rewards) != 0
-        #     # push!(rewards, mean(episode_rewards))
-
-        #     avg_action = zeros(Float32, env.num_vars)
-        #     for epoch in 1:(length(episode_actions) - 1)
-        #         avg_action = avg_action .+ episode_actions[epoch]
-        #         avg_action = avg_action ./ length(episode_actions)
-        #     end
-        #     push!(actions_taken, avg_action)
-        # end
-
-        if i % 101 == 0
-            println("Episode: $i, Action Taken: ", actions_taken[i],  " Reward: ", rewards[i]) # Losses get updated every D episodes
+        if i % 1 == 0
+            println("Episode: $i, Action Taken: ", actions_taken[env.max_iterations * i],  " Reward: ", rewards[env.max_iterations * i]) # Losses get updated every D episodes
             # ", Loss: ", losses[Int(i / D)],
             println()
         end
@@ -321,7 +293,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         marker = false,
         legend = :topright)
 
-    savefig(loss_plot, "loss_plot_oldaction_posmean2.pdf")
+    savefig(loss_plot, "loss_plot_data_oldaction_wbaseline.pdf")
 
     episodes2 = 1:length(rewards)
     reward_plot = plot(episodes2, rewards,
@@ -334,7 +306,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         marker = false,
         legend = :bottomright)
 
-    savefig(reward_plot, "reward_plot_oldaction_posmean2.pdf")
+    savefig(reward_plot, "reward_plot_data_oldaction_wbaseline.pdf")
 
     episodes_critic1 = 1:length(losses_1)
     episodes_critic2 = 1:length(losses_2)
@@ -352,7 +324,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
     title  = ["Critic 1" "Critic 2"],
     )
 
-    savefig(critic_plot, "critics_loss_oldaction_posmean2.pdf")
+    savefig(critic_plot, "critics_loss_data_oldaction_wbaseline.pdf")
 
 end
 

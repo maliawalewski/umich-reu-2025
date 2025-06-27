@@ -74,7 +74,7 @@ function fill_ideal_batch(
 end
 
 function act!(env::Environment, raw_action::Vector{Float32}) 
-    action = make_valid_action(env, env.state, raw_action) # Make valid action from NN output and previous state
+    action = make_valid_action_new(env, env.state, raw_action) # Make valid action from NN output and previous state
     # action = max.(raw_action, 0.0f0) # Ensure action is non-negative
     env.state = action 
 
@@ -119,7 +119,7 @@ end
 function make_valid_action_new(env::Environment, state::Vector{Float32}, raw_action::Vector{Float32})
     # New valid action implemented with delta bound shift
     action = state .* (1 - env.delta_bound) + raw_action .* (env.delta_bound)
-    action = max.(action, 0.0f0) # Ensure non-negative
+    action = max.(action, Float32(1 / env.num_vars^3)) # Ensure non-negative
     action = action ./ sum(action) # Normalize to ensure it sums to 1
     
     return action
