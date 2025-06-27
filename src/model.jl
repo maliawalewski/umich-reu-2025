@@ -11,7 +11,7 @@ include("utils.jl")
 
 # TD3 parameters
 CAPACITY = 1_000_000
-EPISODES = 5_000
+EPISODES = 15_000
 N_SAMPLES = 100
 GAMMA = 0.99 # Discount factor
 TAU = 0.05 # Soft update parameter
@@ -156,10 +156,10 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
         done = false
         # episode_loss = []
-        # # critic_1_episode_loss = []
-        # # critic_2_episode_loss = []
-        # # episode_rewards = []
-        # # episode_actions = []
+        # critic_1_episode_loss = []
+        # critic_2_episode_loss = []
+        # episode_rewards = []
+        # episode_actions = []
 
         while !done
             epsilon = randn(env.num_vars, 1) .* STD
@@ -297,7 +297,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         #     push!(actions_taken, avg_action)
         # end
 
-        if i % 1 == 0
+        if i % 101 == 0
             println("Episode: $i, Action Taken: ", actions_taken[i],  " Reward: ", rewards[i]) # Losses get updated every D episodes
             # ", Loss: ", losses[Int(i / D)],
             println()
@@ -321,7 +321,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         marker = false,
         legend = :topright)
 
-    savefig(loss_plot, "loss_plot_nobaseline_TAU.pdf")
+    savefig(loss_plot, "loss_plot_oldaction_posmean2.pdf")
 
     episodes2 = 1:length(rewards)
     reward_plot = plot(episodes2, rewards,
@@ -334,7 +334,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         marker = false,
         legend = :bottomright)
 
-    savefig(reward_plot, "reward_plot_nobaseline_TAU.pdf")
+    savefig(reward_plot, "reward_plot_oldaction_posmean2.pdf")
 
     episodes_critic1 = 1:length(losses_1)
     episodes_critic2 = 1:length(losses_2)
@@ -352,7 +352,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
     title  = ["Critic 1" "Critic 2"],
     )
 
-    savefig(critic_plot, "critics_loss_nobaseline_TAU.pdf")
+    savefig(critic_plot, "critics_loss_oldaction_posmean2.pdf")
 
 end
 

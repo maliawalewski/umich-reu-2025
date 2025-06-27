@@ -116,6 +116,16 @@ function make_valid_action(env::Environment, state::Vector{Float32}, raw_action:
     return action
 end
 
+function make_valid_action_new(env::Environment, state::Vector{Float32}, raw_action::Vector{Float32})
+    # New valid action implemented with delta bound shift
+    action = state .* (1 - env.delta_bound) + raw_action .* (env.delta_bound)
+    action = max.(action, 0.0f0) # Ensure non-negative
+    action = action ./ sum(action) # Normalize to ensure it sums to 1
+    
+    return action
+end
+
+
 function in_action_space(action::Vector{Float32}, env::Environment)
     # Checks if action is a valid state and that it is not moving too far from the current state
     return in_state_space(action, env) && all(abs.(action .- env.state) .<= env.delta_bound)
