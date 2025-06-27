@@ -65,6 +65,9 @@ function fill_ideal_batch(
         num_terms = env.num_terms,
         max_attempts = max_attempts,
     )
+    
+    display(monomial_matrix)
+
     env.ideal_batch = ideals
     env.variables = vars
     env.monomial_matrix = monomial_matrix
@@ -87,10 +90,10 @@ function act!(env::Environment, raw_action::Vector{Float32})
     for i in 1:length(env.ideal_batch)
         ideal = env.ideal_batch[i]
         trace, basis = groebner_learn(ideal, ordering = order)
-        # baseline_trace, baseline_basis = groebner_learn(ideal, ordering = DegRevLex())
+        baseline_trace, baseline_basis = groebner_learn(ideal, ordering = DegRevLex())
         
         basis_vector = push!(basis_vector, basis)
-        total_reward += (reward(trace)) # - reward(baseline_trace))
+        total_reward += (reward(trace) - reward(baseline_trace))
     end
 
     env.reward = total_reward / Float64(length(env.ideal_batch))

@@ -11,7 +11,7 @@ include("utils.jl")
 
 # TD3 parameters
 CAPACITY = 1_000_000
-EPISODES = 10_000
+EPISODES = 5_000
 N_SAMPLES = 100
 GAMMA = 0.99 # Discount factor
 TAU = 0.05 # Soft update parameter
@@ -130,22 +130,27 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
     current_lr = initial_lr
     t = 0
 
+    ideals, vars, monomial_matrix = new_generate_data(
+        num_ideals = EPISODES * 10,
+        num_polynomials = env.num_polys,
+        num_variables = env.num_vars,
+        max_degree = MAX_DEGREE,
+        num_terms = env.num_terms,
+        max_attempts = MAX_ATTEMPTS,
+    )
+    
+    env.variables = vars
+    env.monomial_matrix = monomial_matrix
+  
     for i = 1:EPISODES
         reset_env!(env)
         # fill_ideal_batch(env, env.num_polys, MAX_DEGREE, MAX_ATTEMPTS) # fill with random ideals
         
-        # TESTING FIXED IDEAL
-        field = GF(32003)
-        ring, (x, y, z) = polynomial_ring(field, ["x", "y", "z"])
-        ideal = [x^2 + y + z, x + x*y^2 + z^3, x^3*y + x*y + y*z^2]
-        env.ideal_batch = [ideal, ideal, ideal, ideal, ideal, ideal, ideal, ideal, ideal, ideal]
-        env.monomial_matrix = [[[2,0,0],[0,1,0],[0,0,1]],
-        [[1,0,0],[1,2,0],[0,0,3]],
-        [[3,1,0],[1,1,0],[0,1,2]]
-        ]
-        env.variables = [x, y, z]
-        # END TESTING FIXED IDEAL
+        start_idx = (i - 1) * 10 + 1
+        end_idx = i * 10
+        env.ideal_batch = ideals[start_idx:end_idx]
 
+        
         s = Float32.(state(env))
         # println("Episode $i, ", "State: ", s)
 
@@ -194,6 +199,8 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
                 t += 1
                 continue
             end
+
+            println("sampling now")
 
             # batch = rand(replay_buffer, N_SAMPLES)
             batch, indices, weights = sample(replay_buffer)
@@ -290,7 +297,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         #     push!(actions_taken, avg_action)
         # end
 
-        if i % 1001 == 0
+        if i % 1 == 0
             println("Episode: $i, Action Taken: ", actions_taken[i],  " Reward: ", rewards[i]) # Losses get updated every D episodes
             # ", Loss: ", losses[Int(i / D)],
             println()
