@@ -152,7 +152,6 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
         
         s = Float32.(state(env))
-        # println("Episode $i, ", "State: ", s)
 
         done = false
         # episode_loss = []
@@ -167,12 +166,9 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             s_input = hcat(matrix, s)
             s_input = reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1))
 
-            # println("Epsilon: ", epsilon)
             action = vec(Float32.(actor.actor(s_input) + epsilon))
-            # println("NN raw output + epsilon: ", action)
 
             basis = act!(env, action)
-            # println("Basis: ", basis)
 
             s_next = Float32.(state(env))
             push!(actions_taken, s_next)
@@ -200,7 +196,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
                 continue
             end
 
-            println("sampling now")
+            # println("sampling now")
 
             # batch = rand(replay_buffer, N_SAMPLES)
             batch, indices, weights = sample(replay_buffer)
@@ -267,35 +263,6 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             end
 
         end
-
-        # if length(episode_loss) != 0
-        #     push!(losses, mean(episode_loss))
-        # end
-
-        # # if length(critic_1_episode_loss) != 0
-        # #     # push!(losses_1, mean(critic_1_episode_loss))
-        # #     # push!(losses_2, mean(critic_2_episode_loss))
-        # # end
-
-        # if length(episode_actions) != 0
-        #     avg_action = zeros(Float32, env.num_vars)
-        #     for epoch in 1:(length(episode_actions) - 1)
-        #         avg_action = avg_action .+ episode_actions[epoch]
-        #         avg_action = avg_action ./ length(episode_actions)
-        #     end
-        #     push!(actions_taken, avg_action)
-        # end
-
-        # if length(episode_rewards) != 0
-        #     # push!(rewards, mean(episode_rewards))
-
-        #     avg_action = zeros(Float32, env.num_vars)
-        #     for epoch in 1:(length(episode_actions) - 1)
-        #         avg_action = avg_action .+ episode_actions[epoch]
-        #         avg_action = avg_action ./ length(episode_actions)
-        #     end
-        #     push!(actions_taken, avg_action)
-        # end
 
         if i % 101 == 0
             println("Episode: $i, Action Taken: ", actions_taken[i],  " Reward: ", rewards[i]) # Losses get updated every D episodes
