@@ -230,7 +230,8 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             update_priorities!(replay_buffer, indices, errors)
             
             loss1, back1 = Flux.withgradient(critic.critic_1) do model
-                mean((model(vcat(s_input_batch, a_batch)) .- y) .^ 2)
+                pred = model(vcat(s_input_batch, a_batch))
+                mean((pred .- y) .^ 2)
             end
 
             push!(losses_1, loss1)
