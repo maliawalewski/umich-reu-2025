@@ -153,7 +153,6 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
         
         s = Float32.(state(env))
-        # println("Episode $i, ", "State: ", s)
 
         done = false
         # episode_loss = []
@@ -168,9 +167,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
             s_input = hcat(matrix, s)
             s_input = reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1))
 
-            # println("Epsilon: ", epsilon)
             action = vec(Float32.(actor.actor(s_input) + epsilon))
-            # println("NN raw output + epsilon: ", action)
 
             basis = act!(env, action)
             # println("Basis 1 size: ", length(basis[1]), "l Basis 3 size: ", length(basis[3]), ", Basis 7 size: ", length(basis[7]))
@@ -271,7 +268,6 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
 
         if i % 1 == 0
             println("Episode: $i, Action Taken: ", actions_taken[env.max_iterations * i],  " Reward: ", rewards[env.max_iterations * i]) # Losses get updated every D episodes
-            # ", Loss: ", losses[Int(i / D)],
             println()
         end
 

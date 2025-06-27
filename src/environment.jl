@@ -14,8 +14,8 @@ mutable struct Environment
     variables::Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}
     is_terminated::Bool
     num_ideals::Int
-    iteration_count::Int # Added
-    max_iterations::Int # Added
+    iteration_count::Int 
+    max_iterations::Int
     num_terms::Int
     num_polys::Int
     monomial_matrix::Array{Vector{Any}}
@@ -33,8 +33,8 @@ function init_environment(;
     }(),
     is_terminated::Bool = false,
     num_ideals::Int = 10,
-    iteration_count::Int = 0, # Added
-    max_iterations::Int = 5, # Added
+    iteration_count::Int = 0, 
+    max_iterations::Int = 5, 
     num_terms::Int = num_vars + 3,
     num_polys::Int = num_vars,
     monomial_matrix::Array{Vector{Any}} = Array{Vector{Any}}(undef, num_polys, num_vars * num_terms),
@@ -75,7 +75,6 @@ end
 
 function act!(env::Environment, raw_action::Vector{Float32}) 
     action = make_valid_action_new(env, env.state, raw_action) # Make valid action from NN output and previous state
-    # action = max.(raw_action, 0.0f0) # Ensure action is non-negative
     env.state = action 
 
     action = Int.(round.(ACTION_SCALE * action))
@@ -97,10 +96,10 @@ function act!(env::Environment, raw_action::Vector{Float32})
     end
 
     env.reward = total_reward / Float64(length(env.ideal_batch))
-    env.iteration_count += 1 # Added
-    if env.iteration_count >= env.max_iterations # Added
-        env.is_terminated = true # Added
-    end    # Added
+    env.iteration_count += 1 
+    if env.iteration_count >= env.max_iterations 
+        env.is_terminated = true 
+    end    
 
     return basis_vector
 end
@@ -150,7 +149,6 @@ function in_state_space(x::Vector{Float32}, env::Environment)
     # Checks if vector is within state space 
     @assert length(x) == env.num_vars "State vector must have the same number of variables as the environment."
     return all(x .>= 0.0f0) && all(x .<= 1.0f0) # all elements are non-negative and less than or equal to 1
-    # abs(sum(x) - 1.0f0) < 1e-6
 end
 
 function state(env::Environment)
