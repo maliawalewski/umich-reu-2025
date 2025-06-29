@@ -32,6 +32,7 @@ EPS = 0.01f0
 # Data parameters (used to generate ideal batch)
 MAX_DEGREE = 4
 MAX_ATTEMPTS = 100
+BASE_SET_PATH = "base_sets.bin"
 
 # NN parameters
 CRITIC_HIDDEN_WIDTH = 256
@@ -130,6 +131,8 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
     current_lr = initial_lr
     t = 0
 
+    base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
+
     ideals, vars, monomial_matrix = new_generate_data(
         num_ideals = EPISODES * 10,
         num_polynomials = env.num_polys,
@@ -137,6 +140,9 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         max_degree = MAX_DEGREE,
         num_terms = env.num_terms,
         max_attempts = MAX_ATTEMPTS,
+        base_sets = base_sets,
+        base_set_path = BASE_SET_PATH,
+        should_save_base_sets = base_sets === nothing,
     )
     
     env.variables = vars

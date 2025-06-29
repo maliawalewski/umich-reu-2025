@@ -1,4 +1,5 @@
 using AbstractAlgebra
+using Serialization
 
 # data.jl generates synthetic polynomial ideals
 
@@ -133,33 +134,37 @@ function new_generate_data(;
     max_degree::Integer = 4,
     num_terms::Integer = 3,
     max_attempts::Integer = 100,
+    base_sets::Union{Nothing, Vector{Any}} = nothing,
+    base_set_path::Union{Nothing, String} = nothing,
+    should_save_base_sets::Bool = false,
 )
 
     @assert num_ideals > 0 "num_ideals must be greater than 0"
-    @assert num_polynomials > 0 "num_polynomials must be greater than 0"
-    @assert num_variables > 0 "num_variables must be greater than 0"
-    @assert max_degree > 0 "max_degree must be greater than 0"
-    @assert num_terms > 0 "num_terms must be greater than 0"
 
-    base_sets = []
-    for i in 1:num_polynomials
-        used_exponents = Set{NTuple{num_variables,Int}}()
-        base_set = []
-        for _ in 1:num_terms
-            attempts = 0
-            while true
-                exponents = rand(0:max_degree, num_variables)
-                expt_key = Tuple(exponents)
-                if !(expt_key in used_exponents)
-                    push!(used_exponents, expt_key)
-                    push!(base_set, exponents)
-                    break
+    if base_sets === nothing
+        base_sets = []
+        for _ in 1:num_polynomials
+            used_exponents = Set{NTuple{num_variables,Int}}()
+            base_set = []
+            for _ in 1:num_terms
+                attempts = 0
+                while true
+                    exponents = rand(0:max_degree, num_variables)
+                    expt_key = Tuple(exponents)
+                    if !(expt_key in used_exponents)
+                        push!(used_exponents, expt_key)
+                        push!(base_set, exponents)
+                        break
+                    end
+                    attempts += 1
+                    @assert attempts <= max_attempts "failed to generate a unique monomial after $max_attempts attempts"
                 end
-                attempts += 1
-                @assert attempts <= max_attempts "failed to generate a unique random monomial after $max_attempts attempts"
             end
+            push!(base_sets, base_set)
         end
-        push!(base_sets, base_set)
+        if should_save_base_sets && base_set_path !== nothing
+            save_base_sets(base_sets, base_set_path)
+        end
     end
 
     ideals = []
@@ -176,4 +181,12 @@ function new_generate_data(;
     end
 
     return ideals, variables, base_sets
+end
+
+function save_base_sets(base_sets, path::String)
+    serialize(path, base_sets)
+end
+
+function load_base_sets(path::String)
+    return deserialize(path)
 end
