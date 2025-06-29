@@ -32,7 +32,7 @@ EPS = 0.01f0
 # Data parameters (used to generate ideal batch)
 MAX_DEGREE = 4
 MAX_ATTEMPTS = 100
-BASE_SET_PATH = "base_sets.bin"
+BASE_SET_PATH = "data/base_sets.bin"
 
 # NN parameters
 CRITIC_HIDDEN_WIDTH = 256
