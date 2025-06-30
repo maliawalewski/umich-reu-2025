@@ -4,13 +4,6 @@ include("data.jl")
 include("utils.jl")
 include("model.jl") 
 
-# Environment parameters
-NUM_VARS = 3
-DELTA_BOUND = 0.1f0 # Max shift from current state
-NUM_POLYS = NUM_VARS # For now, number of polynomials is equal to number of variables
-NUM_IDEALS = 10 # Number of ideals per episode
-NUM_TERMS = NUM_VARS + 2 # Number of terms in each polynomial
-MAX_ITERATIONS = 5 # Maximum iterations per episode (i.e. steps per episode)
 
 function main()
     env = init_environment(num_vars = NUM_VARS, delta_bound = DELTA_BOUND, num_ideals = NUM_IDEALS, max_iterations = MAX_ITERATIONS, num_terms = NUM_TERMS, num_polys = NUM_POLYS)
