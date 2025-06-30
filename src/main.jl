@@ -2,17 +2,25 @@ using Groebner, AbstractAlgebra, Statistics, Dates
 include("environment.jl")
 include("data.jl")
 include("utils.jl")
-include("model.jl") 
+include("model.jl")
 
 
 function main()
-    env = init_environment(num_vars = NUM_VARS, delta_bound = DELTA_BOUND, num_ideals = NUM_IDEALS, max_iterations = MAX_ITERATIONS, num_terms = NUM_TERMS, num_polys = NUM_POLYS)
+    env = init_environment(
+        num_vars = NUM_VARS,
+        delta_bound = DELTA_BOUND,
+        num_ideals = NUM_IDEALS,
+        max_iterations = MAX_ITERATIONS,
+        num_terms = NUM_TERMS,
+        num_polys = NUM_POLYS,
+    )
 
     actor_struct, critic_struct = build_td3_model(env)
 
     # replay_buffer = CircularBuffer{Transition}(CAPACITY)
-    
-    replay_buffer = PrioritizedReplayBuffer(CAPACITY, N_SAMPLES, ALPHA, BETA, BETA_INCREMENT, EPS)
+
+    replay_buffer =
+        PrioritizedReplayBuffer(CAPACITY, N_SAMPLES, ALPHA, BETA, BETA_INCREMENT, EPS)
 
     train_td3!(actor_struct, critic_struct, env, replay_buffer, LR)
 end

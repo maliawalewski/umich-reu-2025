@@ -10,11 +10,13 @@ mutable struct Environment
     delta_bound::Float32
     state::Vector{Float32}
     reward::Float64
-    ideal_batch::Vector{Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}}
+    ideal_batch::Vector{
+        Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}},
+    }
     variables::Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}
     is_terminated::Bool
     num_ideals::Int
-    iteration_count::Int 
+    iteration_count::Int
     max_iterations::Int
     num_terms::Int
     num_polys::Int
@@ -25,25 +27,43 @@ function init_environment(;
     num_vars::Int = 1,
     delta_bound::Float32 = 0.01f0,
     reward::Float32 = 0.0f0,
-    ideal_batch::Vector{Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}} = Vector{Vector{
-        AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}
-    }}(),
+    ideal_batch::Vector{
+        Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}},
+    } = Vector{Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}}(),
     vars::Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}} = Vector{
-        AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}
+        AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}},
     }(),
     is_terminated::Bool = false,
     num_ideals::Int = 10,
-    iteration_count::Int = 0, 
-    max_iterations::Int = 5, 
+    iteration_count::Int = 0,
+    max_iterations::Int = 5,
     num_terms::Int = num_vars + 3,
     num_polys::Int = num_vars,
-    monomial_matrix::Array{Vector{Any}} = Array{Vector{Any}}(undef, num_polys, num_vars * num_terms),
+    monomial_matrix::Array{Vector{Any}} = Array{Vector{Any}}(
+        undef,
+        num_polys,
+        num_vars * num_terms,
+    ),
 )
     @assert num_vars > 0 "Number of variables must be greater than 0."
     @assert delta_bound >= 0.0f0 "Delta noise must be non-negative."
 
     state_i = init_state(num_vars)
-    return Environment(num_vars, delta_bound, state_i, reward, ideal_batch, vars, is_terminated, num_ideals, iteration_count, max_iterations, num_terms, num_polys, monomial_matrix) # Added
+    return Environment(
+        num_vars,
+        delta_bound,
+        state_i,
+        reward,
+        ideal_batch,
+        vars,
+        is_terminated,
+        num_ideals,
+        iteration_count,
+        max_iterations,
+        num_terms,
+        num_polys,
+        monomial_matrix,
+    ) # Added
 end
 
 function init_state(num_vars::Int)
@@ -65,7 +85,7 @@ function fill_ideal_batch(
         num_terms = env.num_terms,
         max_attempts = max_attempts,
     )
-    
+
     display(monomial_matrix)
 
     env.ideal_batch = ideals
@@ -73,9 +93,9 @@ function fill_ideal_batch(
     env.monomial_matrix = monomial_matrix
 end
 
-function act!(env::Environment, raw_action::Vector{Float32}) 
+function act!(env::Environment, raw_action::Vector{Float32})
     action = make_valid_action_new(env, env.state, raw_action) # Make valid action from NN output and previous state
-    env.state = action 
+    env.state = action
 
     action = Int.(round.(ACTION_SCALE * action))
 
@@ -86,25 +106,29 @@ function act!(env::Environment, raw_action::Vector{Float32})
     total_reward = Float64(0.0f0)
     basis_vector = []
 
-    for i in 1:length(env.ideal_batch)
+    for i = 1:length(env.ideal_batch)
         ideal = env.ideal_batch[i]
         trace, basis = groebner_learn(ideal, ordering = order)
         baseline_trace, baseline_basis = groebner_learn(ideal, ordering = DegRevLex())
-        
+
         basis_vector = push!(basis_vector, basis)
         total_reward += (reward(trace) - reward(baseline_trace))
     end
 
     env.reward = total_reward / Float64(length(env.ideal_batch))
-    env.iteration_count += 1 
-    if env.iteration_count >= env.max_iterations 
-        env.is_terminated = true 
-    end    
+    env.iteration_count += 1
+    if env.iteration_count >= env.max_iterations
+        env.is_terminated = true
+    end
 
     return basis_vector
 end
 
-function make_valid_action(env::Environment, state::Vector{Float32}, raw_action::Vector{Float32})
+function make_valid_action(
+    env::Environment,
+    state::Vector{Float32},
+    raw_action::Vector{Float32},
+)
     # Takes the output of the NN and makes it a valid action
     min_allowed = max.(state .- env.delta_bound, Float32(1 / env.num_vars^3))
     max_allowed = state .+ env.delta_bound
@@ -115,12 +139,16 @@ function make_valid_action(env::Environment, state::Vector{Float32}, raw_action:
     return action
 end
 
-function make_valid_action_new(env::Environment, state::Vector{Float32}, raw_action::Vector{Float32})
+function make_valid_action_new(
+    env::Environment,
+    state::Vector{Float32},
+    raw_action::Vector{Float32},
+)
     # New valid action implemented with delta bound shift
     action = state .* (1 - env.delta_bound) + raw_action .* (env.delta_bound)
     action = max.(action, Float32(1 / env.num_vars^3)) # Ensure non-negative
     action = action ./ sum(action) # Normalize to ensure it sums to 1
-    
+
     return action
 end
 
@@ -132,14 +160,15 @@ end
 
 function reward(trace::Groebner.WrappedTrace)
     @assert length(trace.recorded_traces) == 1 "WrappedTrace struct is tracking multiple traces"
-    total_reward = Float64(0f0)
+    total_reward = Float64(0.0f0)
     for (k, t) in trace.recorded_traces
         @assert length(t.critical_pair_sequence) == (length(t.matrix_infos) - 1) "length of critical_pair_sequence and matrix_infos do not match"
         for i = 1:length(t.critical_pair_sequence)
             n_cols = Float64(t.matrix_infos[i+1][3]) / Float64(100)
             pair_degree = t.critical_pair_sequence[i][1]
             pair_count = t.critical_pair_sequence[i][2]
-            total_reward += (Float64(n_cols) * Float64(pair_count) * Float64(log(pair_degree)))
+            total_reward +=
+                (Float64(n_cols) * Float64(pair_count) * Float64(log(pair_degree)))
         end
     end
     return -total_reward
@@ -164,7 +193,8 @@ function reset_env!(env::Environment)
     # Resets the environment to its initial state
     env.reward = Float64(0.0f0)
     env.state = init_state(env.num_vars)
-    env.ideal_batch = Vector{Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}}()
+    env.ideal_batch =
+        Vector{Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}}()
     env.is_terminated = false
     env.iteration_count = 0 # Added
 end
