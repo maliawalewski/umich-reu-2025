@@ -17,9 +17,7 @@ NUM_TERMS = NUM_VARS + 2 # Number of terms in each polynomial
 MAX_ITERATIONS = 5 # Maximum iterations per episode (i.e. steps per episode)
 
 # TD3 parameters
-CAPACITY = 1_000_000
 EPISODES = 5_000
-N_SAMPLES = 100
 GAMMA = 0.99 # Discount factor
 TAU = 0.05 # Soft update parameter
 LR = 1e-3 # Learning rate for actor and critics
@@ -39,7 +37,7 @@ EPS = 0.01f0
 # Data parameters (used to generate ideal batch)
 MAX_DEGREE = 4
 MAX_ATTEMPTS = 100
-BASE_SET_PATH = "src/data/base_sets.bin"
+BASE_SET_PATH = "data/base_sets.bin"
 
 # NN parameters
 CRITIC_HIDDEN_WIDTH = 256
@@ -306,7 +304,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         marker = false,
         legend = :topright)
 
-    savefig(loss_plot, "loss_plot_LSTM.pdf")
+    savefig(loss_plot, "loss_plot.pdf")
 
     episodes2 = 1:length(rewards)
     reward_plot = plot(episodes2, rewards,
@@ -319,7 +317,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
         marker = false,
         legend = :bottomright)
 
-    savefig(reward_plot, "reward_plot_LSTM.pdf")
+    savefig(reward_plot, "reward_plot.pdf")
 
     episodes_critic1 = 1:length(losses_1)
     episodes_critic2 = 1:length(losses_2)
@@ -337,7 +335,7 @@ function train_td3!(actor::Actor, critic::Critics, env::Environment, replay_buff
     title  = ["Critic 1" "Critic 2"],
     )
 
-    savefig(critic_plot, "critics_loss_LSTM.pdf")
+    savefig(critic_plot, "critics_loss.pdf")
 
 end
 
