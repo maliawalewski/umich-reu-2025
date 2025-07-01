@@ -3,7 +3,7 @@ using AbstractAlgebra
 include("data.jl")
 
 # Scaling parameters
-ACTION_SCALE = 1e4 # Scales action to integers 
+ACTION_SCALE = 1e3 # Scales action to integers 
 
 mutable struct Environment
     num_vars::Int
@@ -86,7 +86,7 @@ function fill_ideal_batch(
         max_attempts = max_attempts,
     )
 
-    display(monomial_matrix)
+    # display(monomial_matrix)
 
     env.ideal_batch = ideals
     env.variables = vars
@@ -94,10 +94,11 @@ function fill_ideal_batch(
 end
 
 function act!(env::Environment, raw_action::Vector{Float32})
-    action = make_valid_action_new(env, env.state, raw_action) # Make valid action from NN output and previous state
+    action = make_valid_action_test(env, env.state, raw_action) # Make valid action from NN output and previous state
     env.state = action
 
     action = Int.(round.(ACTION_SCALE * action))
+    println("Scaled action: ", action)
 
     weights = zip(env.variables, action)
     order = WeightedOrdering(weights...)
@@ -149,6 +150,17 @@ function make_valid_action_new(
     action = max.(action, Float32(1 / env.num_vars^3)) # Ensure non-negative
     action = action ./ sum(action) # Normalize to ensure it sums to 1
 
+    return action
+end
+
+function make_valid_action_test(
+    env::Environment,
+    state::Vector{Float32},
+    raw_action::Vector{Float32},
+)
+    # Test valid action implementation
+    action = max.(raw_action, Float32(1 / env.num_vars^3)) # Ensure non-negative
+    
     return action
 end
 

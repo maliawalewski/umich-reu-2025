@@ -6,6 +6,14 @@ include("model.jl")
 
 
 function main()
+
+    # # TESTING FIXED IDEAL
+    # field = GF(32003)
+    # ring, (x, y, z) = polynomial_ring(field, ["x", "y", "z"])
+    # ideal = [x^2 + y + z, x + x*y^2 + z^3, x^3*y + x*y + y*z^2]
+    # # END TESTING FIXED IDEAL
+
+
     env = init_environment(
         num_vars = NUM_VARS,
         delta_bound = DELTA_BOUND,

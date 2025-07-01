@@ -10,21 +10,21 @@ include("utils.jl")
 
 # Environment parameters
 NUM_VARS = 3
-DELTA_BOUND = 0.1f0 # Max shift from current state
+DELTA_BOUND = 0.01f0 # Max shift from current state
 NUM_POLYS = NUM_VARS # For now, number of polynomials is equal to number of variables
 NUM_IDEALS = 10 # Number of ideals per episode
 NUM_TERMS = NUM_VARS + 2 # Number of terms in each polynomial
-MAX_ITERATIONS = 5 # Maximum iterations per episode (i.e. steps per episode)
+MAX_ITERATIONS = 20 # Maximum iterations per episode (i.e. steps per episode)
 
 # TD3 parameters
-EPISODES = 5_000
+EPISODES = 500
 GAMMA = 0.99 # Discount factor
 TAU = 0.05 # Soft update parameter
-LR = 1e-3 # Learning rate for actor and critics
+LR = 1e-4 # Learning rate for actor and critics
 MIN_LR = 1e-5 # Minimum Learning Rate
 LR_DECAY = (LR - MIN_LR) / (EPISODES - (EPISODES / 10)) # LR decay Rate (edit so we don't hardcode 5000)
-STD = 0.002 # Standard deviation for exploration noise
-D = 2 # Update frequency for target actor and critics 
+STD = 0.001 # Standard deviation for exploration noise
+D = 100 # Update frequency for target actor and critics 
 
 # Prioritized Experience Replay Buffer parameters
 CAPACITY = 1_000_000
@@ -37,7 +37,7 @@ EPS = 0.01f0
 # Data parameters (used to generate ideal batch)
 MAX_DEGREE = 4
 MAX_ATTEMPTS = 100
-BASE_SET_PATH = "data/base_sets.bin"
+BASE_SET_PATH = "src/data/base_sets.bin"
 
 # NN parameters
 CRITIC_HIDDEN_WIDTH = 512
@@ -100,11 +100,11 @@ function build_td3_model(env::Environment)
         Dense(
             ((env.num_vars * env.num_terms) + 1) * env.num_vars,
             ACTOR_HIDDEN_WIDTH,
-            relu,
+            gelu,
         ),
-        Dense(ACTOR_HIDDEN_WIDTH, ACTOR_HIDDEN_WIDTH, relu),
-        Dense(ACTOR_HIDDEN_WIDTH, ACTOR_HIDDEN_WIDTH, relu),
-        Dense(ACTOR_HIDDEN_WIDTH, env.num_vars, sigmoid),
+        Dense(ACTOR_HIDDEN_WIDTH, ACTOR_HIDDEN_WIDTH, gelu),
+        Dense(ACTOR_HIDDEN_WIDTH, ACTOR_HIDDEN_WIDTH, gelu),
+        Dense(ACTOR_HIDDEN_WIDTH, env.num_vars), softmax,
     )
 
     # LSTM layer actor
@@ -122,20 +122,20 @@ function build_td3_model(env::Environment)
         Dense(
             ((env.num_vars * env.num_terms) + 2) * env.num_vars,
             CRITIC_HIDDEN_WIDTH,
-            relu,
+            gelu,
         ),
-        Dense(CRITIC_HIDDEN_WIDTH, CRITIC_HIDDEN_WIDTH, relu),
-        Dense(CRITIC_HIDDEN_WIDTH, CRITIC_HIDDEN_WIDTH, relu),
+        Dense(CRITIC_HIDDEN_WIDTH, CRITIC_HIDDEN_WIDTH, gelu),
+        Dense(CRITIC_HIDDEN_WIDTH, CRITIC_HIDDEN_WIDTH, gelu),
         Dense(CRITIC_HIDDEN_WIDTH, 1),
     )
     critic_2 = Flux.Chain(
         Dense(
             ((env.num_vars * env.num_terms) + 2) * env.num_vars,
             CRITIC_HIDDEN_WIDTH,
-            relu,
+            gelu,
         ),
-        Dense(CRITIC_HIDDEN_WIDTH, CRITIC_HIDDEN_WIDTH, relu),
-        Dense(CRITIC_HIDDEN_WIDTH, CRITIC_HIDDEN_WIDTH, relu),
+        Dense(CRITIC_HIDDEN_WIDTH, CRITIC_HIDDEN_WIDTH, gelu),
+        Dense(CRITIC_HIDDEN_WIDTH, CRITIC_HIDDEN_WIDTH, gelu),
         Dense(CRITIC_HIDDEN_WIDTH, 1),
     )
 
@@ -147,11 +147,14 @@ function build_td3_model(env::Environment)
     critic_1_target = deepcopy(critic_1)
     critic_2_target = deepcopy(critic_2)
 
-    actor_opt = ADAM(LR)
+    # actor_opt = ADAM(LR)
+    actor_opt = Optimisers.OptimiserChain(Optimisers.ClipNorm(10), Optimisers.ADAM(LR))
     actor_opt_state = Flux.setup(actor_opt, actor)
 
-    critic_1_opt = ADAM(LR)
-    critic_2_opt = ADAM(LR)
+    # critic_1_opt = ADAM(LR)
+    # critic_2_opt = ADAM(LR)    
+    critic_1_opt = Optimisers.OptimiserChain(Optimisers.ClipNorm(10), Optimisers.ADAM(LR))
+    critic_2_opt = Optimisers.OptimiserChain(Optimisers.ClipNorm(10), Optimisers.ADAM(LR))
 
     critic_1_opt_state = Flux.setup(critic_1_opt, critic_1)
     critic_2_opt_state = Flux.setup(critic_2_opt, critic_2)
@@ -203,6 +206,8 @@ function train_td3!(
     env.monomial_matrix = monomial_matrix
     println("Monomial_matrix: ", env.monomial_matrix)
 
+    t = 0
+
     for i = 1:EPISODES
         reset_env!(env)
         # fill_ideal_batch(env, env.num_polys, MAX_DEGREE, MAX_ATTEMPTS) # fill with random ideals
@@ -210,7 +215,6 @@ function train_td3!(
         start_idx = (i - 1) * 10 + 1
         end_idx = i * 10
         env.ideal_batch = ideals[start_idx:end_idx]
-
 
         s = Float32.(state(env))
 
@@ -227,7 +231,9 @@ function train_td3!(
             s_input = hcat(matrix, s)
             s_input =
                 reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1))
-            action = vec(Float32.(actor.actor(s_input) + epsilon))
+            
+            raw_action = vec((actor.actor(s_input)))
+            action = vec(Float32.(raw_action + epsilon))
 
             basis = act!(env, action)
             # println("Basis 1 size: ", length(basis[1]), "l Basis 3 size: ", length(basis[3]), ", Basis 7 size: ", length(basis[7]))
@@ -243,6 +249,9 @@ function train_td3!(
 
             r = Float32(env.reward)
             push!(rewards, r)
+
+            println("t: ", t, ", Raw action: ", raw_action, ", Epsilon: ", epsilon, ", Reward: ", r)
+            
 
             done = is_terminated(env)
             s_next = done ? nothing : s_next
@@ -261,6 +270,7 @@ function train_td3!(
             s_input = s_next_input === nothing ? s_input : s_next_input
 
             if length(replay_buffer) < N_SAMPLES
+                t += 1
                 continue
             end
 
@@ -307,7 +317,7 @@ function train_td3!(
 
             loss1, back1 = Flux.withgradient(critic.critic_1) do model
                 pred = model(vcat(s_input_batch, a_batch))
-                Flux.mae(pred, y)
+                mean((pred .- y) .^ 2)
             end
 
             push!(losses_1, loss1)
@@ -316,7 +326,7 @@ function train_td3!(
 
             loss2, back2 = Flux.withgradient(critic.critic_2) do model
                 pred = model(vcat(s_input_batch, a_batch))
-                Flux.mae(pred, y)
+                mean((pred .- y) .^ 2)
             end
 
             push!(losses_2, loss2)
@@ -324,7 +334,7 @@ function train_td3!(
             Flux.update!(critic.critic_2_opt_state, critic.critic_2, back2[1])
 
             # Updating every D episodes instead of every D timesteps (changed t to i)
-            if i % D == 0
+            if t % D == 0
                 # println("updating target networks and online actor loss")
                 actor_loss, back = Flux.withgradient(actor.actor) do model
                     a_pred = model(s_input_batch)
@@ -335,6 +345,7 @@ function train_td3!(
                 push!(losses, actor_loss)
 
                 grads = back[1]
+                # println("gradient: ", grads)
                 Flux.update!(actor.actor_opt_state, actor.actor, grads)
 
                 soft_update!(critic.critic_1_target, critic.critic_1)
@@ -342,9 +353,11 @@ function train_td3!(
                 soft_update!(actor.actor_target, actor.actor)
             end
 
+            t += 1
+
         end
 
-        if i % 11 == 0
+        if i % 1 == 0
             println(
                 "Episode: $i, Action Taken: ",
                 actions_taken[env.max_iterations*i],
@@ -372,10 +385,10 @@ function train_td3!(
         lw = 0.5,
         linecolor = :red,
         marker = false,
-        legend = :topright,
+        legend = :topleft,
     )
 
-    savefig(loss_plot, "loss_plot.pdf")
+    savefig(loss_plot, "loss_plot_newvalidact.pdf")
 
     episodes2 = 1:length(rewards)
     reward_plot = plot(
@@ -391,7 +404,7 @@ function train_td3!(
         legend = :bottomright,
     )
 
-    savefig(reward_plot, "reward_plot.pdf")
+    savefig(reward_plot, "reward_plot_newvalidact.pdf")
 
     episodes_critic1 = 1:length(losses_1)
     episodes_critic2 = 1:length(losses_2)
@@ -410,7 +423,7 @@ function train_td3!(
         title = ["Critic 1" "Critic 2"],
     )
 
-    savefig(critic_plot, "critics_loss.pdf")
+    savefig(critic_plot, "critics_loss_newvalidact.pdf")
 
 end
 
