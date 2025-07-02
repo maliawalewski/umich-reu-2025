@@ -3,7 +3,10 @@ using AbstractAlgebra
 include("data.jl")
 
 # Scaling parameters
-ACTION_SCALE = 1e3 # Scales action to integers 
+ACTION_SCALE = 1e2 # Scales action to integers 
+n_cols_list = Float64[]
+pair_degrees = Int[]
+pair_counts = Int[]
 
 mutable struct Environment
     num_vars::Int
@@ -71,6 +74,13 @@ function init_state(num_vars::Int)
     return epsilon_vector ./ sum(epsilon_vector)  # Normalize to ensure it sums to 1
 end
 
+function init_state_less_noise(num_vars::Int)
+    vector = zeros(num_vars)
+    vector .+= 1.0f0 / Float32(num_vars)
+    epsilon_vector = vector .+ (rand(Float32, num_vars) .* 0.01f0)
+    return epsilon_vector ./ sum(epsilon_vector)  # Normalize to ensure it sums to 1
+end
+
 function fill_ideal_batch(
     env::Environment,
     num_polynomials::Int,
@@ -94,11 +104,12 @@ function fill_ideal_batch(
 end
 
 function act!(env::Environment, raw_action::Vector{Float32})
-    action = make_valid_action_test(env, env.state, raw_action) # Make valid action from NN output and previous state
+    # action = make_valid_action_new(env, env.state, raw_action) # Make valid action from NN output and previous state
+    action = raw_action
     env.state = action
 
     action = Int.(round.(ACTION_SCALE * action))
-    println("Scaled action: ", action)
+    # println("weighting for groebner: ", action)
 
     weights = zip(env.variables, action)
     order = WeightedOrdering(weights...)
@@ -179,8 +190,13 @@ function reward(trace::Groebner.WrappedTrace)
             n_cols = Float64(t.matrix_infos[i+1][3]) / Float64(100)
             pair_degree = t.critical_pair_sequence[i][1]
             pair_count = t.critical_pair_sequence[i][2]
+
+            push!(n_cols_list, n_cols)
+            push!(pair_degrees, pair_degree)
+            push!(pair_counts, pair_count)
+
             total_reward +=
-                (Float64(n_cols) * Float64(pair_count) * Float64(log(pair_degree)))
+                (Float64(n_cols)) * Float64(log(pair_degree)) * (Float64(pair_count))
         end
     end
     return -total_reward

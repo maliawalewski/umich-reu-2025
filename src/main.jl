@@ -37,6 +37,6 @@ start_time = now()
 main()
 end_time = now()
 
-elapsed_ms = Millisecond(end_time - start_time).value
+elapsed_ms = Millisecond(end_time - start_time).value 
 elapsed_sec = elapsed_ms / 1000
 println("Total runtime: $elapsed_sec seconds")
