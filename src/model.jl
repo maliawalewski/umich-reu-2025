@@ -386,32 +386,32 @@ function train_td3!(
     end
 
     episodes = 1:length(losses)
-    loss_plot = plot(
+    loss_plot = scatter(
         episodes,
         losses,
         title = "Actor Loss plot",
         xlabel = "Actor Update Step (every $D timesteps)",
         ylabel = "Loss",
         label = "Actor Loss",
-        lw = 0.5,
-        linecolor = :red,
-        marker = false,
+        color = :red,       
+        markersize = 2,     
+        markerstrokewidth = 0, # Removes the border around the dots
         legend = :topleft,
     )
 
     savefig(loss_plot, "actor_plot.pdf")
 
     episodes2 = 1:length(rewards)
-    reward_plot = plot(
+    reward_plot = scatter(
         episodes2,
         rewards,
         title = "Reward plot",
         xlabel = "Time step",
         ylabel = "Reward",
         label = "Reward",
-        lw = 0.5,
-        linecolor = :green,
-        marker = false,
+        color = :green,
+        markersize = 2,
+        markerstrokewidth = 0,
         legend = :bottomright,
     )
 
@@ -420,14 +420,14 @@ function train_td3!(
     episodes_critic1 = 1:length(losses_1)
     episodes_critic2 = 1:length(losses_2)
 
-    critic_plot = plot(
+    critic_plot = scatter(
         [episodes_critic1 episodes_critic2],
         [losses_1 losses_2],
         layout = (2, 1),
         legend = :topright,
-        lw = 0.5,
-        marker = false,
-        linecolor = [:purple :blue],
+        markersize = 2,
+        markerstrokewidth = 0,
+        color = [:purple :blue], 
         xlabel = "Time step",
         ylabel = "Loss",
         label = ["Critic 1 Loss" "Critic 2 Loss"],
@@ -437,32 +437,38 @@ function train_td3!(
     savefig(critic_plot, "critics_plot.pdf")
 
 
-    n_cols = plot(1:length(n_cols_list), n_cols_list,
+    n_cols_plot = scatter(1:length(n_cols_list), n_cols_list,
         title = "n_cols over time",
         xlabel = "Step",
         ylabel = "n_cols",
-        lw = 0.5,
-        label = "n_cols")
+        label = "n_cols",
+        markersize = 2,
+        markerstrokewidth = 0,
+        color = :orange)
 
-    savefig(n_cols, "n_cols_plot.pdf")
+    savefig(n_cols_plot, "n_cols_plot.pdf")
 
-    n_deg = plot(1:length(pair_degrees), pair_degrees,
+    n_deg_plot = scatter(1:length(pair_degrees), pair_degrees,
         title = "Pair Degrees over time",
         xlabel = "Step",
         ylabel = "pair_degree",
-        lw = 0.5,
-        label = "degree")
+        label = "degree",
+        markersize = 2,
+        markerstrokewidth = 0,
+        color = :cyan)
     
-    savefig(n_deg, "pair_degrees_plot.pdf")
+    savefig(n_deg_plot, "pair_degrees_plot.pdf")
 
-    n_cts = plot(1:length(pair_counts), pair_counts,
+    n_cts_plot = scatter(1:length(pair_counts), pair_counts,
         title = "Pair Counts over time",
         xlabel = "Step",
         ylabel = "pair_count",
-        lw = 0.5,
-        label = "count")
+        label = "count",
+        markersize = 2,
+        markerstrokewidth = 0,
+        color = :magenta)
 
-    savefig(n_cts, "pair_counts_plot.pdf")
+    savefig(n_cts_plot, "pair_counts_plot.pdf")
 
 end
 
