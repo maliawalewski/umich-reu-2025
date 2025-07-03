@@ -65,17 +65,6 @@ CRITIC_HIDDEN_WIDTH = 512
 ACTOR_HIDDEN_WIDTH = 512
 ACTOR_DEPTH = 2 # Number of LSTM layers
 
-# NOTE: this is now defined in utils.jl
-# struct Transition
-# s::Vector{Float32}
-# a::Vector{Float32}
-# r::Float32
-# s_next::Union{Vector{Float32},Nothing}
-# s_input::Array{Float32}
-# s_next_input::Union{Array{Float32},Nothing}
-# end
-
-
 struct Actor
     actor::Flux.Chain
     actor_target::Flux.Chain
@@ -264,8 +253,6 @@ function train_td3!(
             
             raw_action = vec((actor.actor(s_input)))
             action = vec(Float32.(raw_action + epsilon))
-            # raw_action = vec(Float32.(actor.actor(s_input)))
-            # action = vec(Float32.(actor.actor(s_input) + epsilon))
 
             basis = act!(env, action)
             # println("Basis 1 size: ", length(basis[1]), "l Basis 3 size: ", length(basis[3]), ", Basis 7 size: ", length(basis[7]))
