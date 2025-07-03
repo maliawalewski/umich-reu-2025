@@ -13,11 +13,11 @@ NUM_VARS = 3
 DELTA_BOUND = 0.1f0 # Max shift from current state
 NUM_POLYS = NUM_VARS # For now, number of polynomials is equal to number of variables
 NUM_IDEALS = 10 # Number of ideals per episode
-NUM_TERMS = NUM_VARS + 2 # Number of terms in each polynomial
+NUM_TERMS = 17 # Number of terms in each polynomial
 MAX_ITERATIONS = 25 # Maximum iterations per episode (i.e. steps per episode)
 
 # TD3 parameters
-EPISODES = 5_000
+EPISODES = 100
 GAMMA = 0.99 # Discount factor
 TAU = 0.05 # Soft update parameter
 LR = 1e-4 # Learning rate for actor and critics
@@ -39,6 +39,27 @@ MAX_DEGREE = 4
 MAX_ATTEMPTS = 100
 BASE_SET_PATH = "data/base_sets.bin"
 
+BASE_SET = Vector{Any}([
+    [
+        [4, 2, 0], [4, 0, 2], [3, 3, 0], [3, 2, 1], [3, 2, 0],
+        [3, 1, 2], [3, 0, 3], [3, 0, 2], [1, 3, 2], [1, 2, 3],
+        [1, 2, 2], [0, 4, 2], [0, 3, 3], [0, 3, 2], [0, 2, 4],
+        [0, 2, 3], [0, 2, 2]
+    ],
+    [
+        [4, 0, 2], [3, 3, 0], [3, 1, 2], [3, 0, 3], [3, 0, 2],
+        [2, 4, 0], [2, 3, 1], [2, 3, 0], [2, 1, 3], [2, 1, 2],
+        [2, 0, 4], [2, 0, 3], [2, 0, 2], [1, 3, 2], [0, 4, 2],
+        [0, 3, 3], [0, 3, 2]
+    ],
+    [
+        [4, 2, 0], [3, 3, 0], [3, 2, 1], [3, 2, 0], [3, 0, 3],
+        [2, 4, 0], [2, 3, 1], [2, 3, 0], [2, 2, 1], [2, 2, 0],
+        [2, 1, 3], [2, 0, 4], [2, 0, 3], [1, 2, 3], [0, 3, 3],
+        [0, 2, 4], [0, 2, 3]
+    ]
+])
+
 # NN parameters
 CRITIC_HIDDEN_WIDTH = 512
 ACTOR_HIDDEN_WIDTH = 512
@@ -53,6 +74,7 @@ ACTOR_DEPTH = 2 # Number of LSTM layers
 # s_input::Array{Float32}
 # s_next_input::Union{Array{Float32},Nothing}
 # end
+
 
 struct Actor
     actor::Flux.Chain
@@ -188,7 +210,8 @@ function train_td3!(
 
     current_lr = initial_lr
 
-    base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
+    # base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
+    base_sets = BASE_SET # Using hardcoded CV base sets
 
     ideals, vars, monomial_matrix = new_generate_data(
         num_ideals = EPISODES * NUM_IDEALS,
