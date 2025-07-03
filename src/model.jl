@@ -17,7 +17,7 @@ NUM_TERMS = NUM_VARS + 2 # Number of terms in each polynomial
 MAX_ITERATIONS = 25 # Maximum iterations per episode (i.e. steps per episode)
 
 # TD3 parameters
-EPISODES = 1_000
+EPISODES = 5_000
 GAMMA = 0.99 # Discount factor
 TAU = 0.05 # Soft update parameter
 LR = 1e-4 # Learning rate for actor and critics
@@ -37,7 +37,7 @@ EPS = 0.01f0
 # Data parameters (used to generate ideal batch)
 MAX_DEGREE = 4
 MAX_ATTEMPTS = 100
-BASE_SET_PATH = "src/data/base_sets.bin"
+BASE_SET_PATH = "data/base_sets.bin"
 
 # NN parameters
 CRITIC_HIDDEN_WIDTH = 512
@@ -148,10 +148,13 @@ function build_td3_model(env::Environment)
     critic_2_target = deepcopy(critic_2)
 
     actor_opt = ADAM(LR)
+    # actor_opt = Optimisers.OptimiserChain(Optimisers.ClipNorm(10), Optimisers.ADAM(LR))
     actor_opt_state = Flux.setup(actor_opt, actor)
 
     critic_1_opt = ADAM(LR)
     critic_2_opt = ADAM(LR)
+    # critic_1_opt = Optimisers.OptimiserChain(Optimisers.ClipNorm(10), Optimisers.ADAM(LR))
+    # critic_2_opt = Optimisers.OptimiserChain(Optimisers.ClipNorm(10), Optimisers.ADAM(LR))
 
     critic_1_opt_state = Flux.setup(critic_1_opt, critic_1)
     critic_2_opt_state = Flux.setup(critic_2_opt, critic_2)
@@ -188,7 +191,7 @@ function train_td3!(
     base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
 
     ideals, vars, monomial_matrix = new_generate_data(
-        num_ideals = EPISODES * 10,
+        num_ideals = EPISODES * NUM_IDEALS,
         num_polynomials = env.num_polys,
         num_variables = env.num_vars,
         max_degree = MAX_DEGREE,
@@ -209,8 +212,8 @@ function train_td3!(
         reset_env!(env)
         # fill_ideal_batch(env, env.num_polys, MAX_DEGREE, MAX_ATTEMPTS) # fill with random ideals
 
-        start_idx = (i - 1) * 10 + 1
-        end_idx = i * 10
+        start_idx = (i - 1) * NUM_IDEALS + 1
+        end_idx = i * NUM_IDEALS
         env.ideal_batch = ideals[start_idx:end_idx]
 
         s = Float32.(state(env))
@@ -234,18 +237,12 @@ function train_td3!(
             matrix = normalize_columns(raw_matrix)
 
             s_input = hcat(matrix, s)
-            s_input =
-                reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1))
+            s_input = reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1))
             
             raw_action = vec((actor.actor(s_input)))
-            # action = vec(Float32.(raw_action + epsilon))
+            action = vec(Float32.(raw_action + epsilon))
             # raw_action = vec(Float32.(actor.actor(s_input)))
-
-            if global_timestep % 11 == 0
-                println("Raw action: ", raw_action)
-            end
-
-            action = vec(Float32.(actor.actor(s_input) + epsilon))
+            # action = vec(Float32.(actor.actor(s_input) + epsilon))
 
             basis = act!(env, action)
             # println("Basis 1 size: ", length(basis[1]), "l Basis 3 size: ", length(basis[3]), ", Basis 7 size: ", length(basis[7]))
@@ -260,6 +257,11 @@ function train_td3!(
             )
 
             r = Float32(env.reward)
+
+            if global_timestep % 1 == 0
+                println("Raw action: $raw_action, reward: $r")
+            end
+
             # r = clamp(r, -300f0, 500f0)
             push!(rewards, r)
 

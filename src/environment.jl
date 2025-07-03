@@ -3,7 +3,7 @@ using AbstractAlgebra
 include("data.jl")
 
 # Scaling parameters
-ACTION_SCALE = 1e2 # Scales action to integers 
+ACTION_SCALE = 1e3 # Scales action to integers 
 n_cols_list = Float64[]
 pair_degrees = Int[]
 pair_counts = Int[]
@@ -109,6 +109,7 @@ function act!(env::Environment, raw_action::Vector{Float32})
     env.state = action
 
     action = Int.(round.(ACTION_SCALE * action))
+    println("scaled action: $action")
     # println("weighting for groebner: ", action)
 
     weights = zip(env.variables, action)
