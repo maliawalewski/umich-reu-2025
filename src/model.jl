@@ -5,6 +5,7 @@ using Statistics
 using Optimisers
 using Plots
 using LinearAlgebra
+using BSON
 include("environment.jl")
 include("utils.jl")
 
@@ -17,7 +18,7 @@ NUM_TERMS = 17 # Number of terms in each polynomial
 MAX_ITERATIONS = 25 # Maximum iterations per episode (i.e. steps per episode)
 
 # TD3 parameters
-EPISODES = 100
+EPISODES = 1000
 GAMMA = 0.99 # Discount factor
 TAU = 0.05 # Soft update parameter
 LR = 1e-4 # Learning rate for actor and critics
@@ -38,6 +39,9 @@ EPS = 0.01f0
 MAX_DEGREE = 4
 MAX_ATTEMPTS = 100
 BASE_SET_PATH = "data/base_sets.bin"
+
+# save/load model 
+CHECKPOINT_PATH = "weights/td3_checkpoint.bson"
 
 BASE_SET = Vector{Any}([
     [
@@ -227,7 +231,7 @@ function train_td3!(
         start_idx = (i - 1) * NUM_IDEALS + 1
         end_idx = i * NUM_IDEALS
         env.ideal_batch = ideals[start_idx:end_idx]
-
+        
         s = Float32.(state(env))
 
         done = false
@@ -388,6 +392,11 @@ function train_td3!(
             println()
         end
 
+        if i % 100 == 0
+            @BSON.save(CHECKPOINT_PATH, actor, critic)
+            println("Saved TD3 checkpoint to $CHECKPOINT_PATH at episode $i")
+        end
+
         current_lr = max(MIN_LR, current_lr - LR_DECAY)
         Flux.adjust!(actor.actor_opt_state, current_lr)
         Flux.adjust!(critic.critic_1_opt_state, current_lr)
@@ -485,5 +494,21 @@ end
 function soft_update!(target, policy)
     for (tp, pp) in zip(Flux.params(target), Flux.params(policy))
         tp .= (1 - TAU) * tp .+ TAU * pp
+    end
+end
+
+function load_td3(env::Environment)
+    if isfile(CHECKPOINT_PATH)
+        println("Checkpoint found. Loading saved model")
+        actor = nothing
+        critic = nothing
+        replay_buffer = PrioritizedReplayBuffer(CAPACITY, N_SAMPLES, ALPHA, BETA, BETA_INCREMENT, EPS)
+        @BSON.load(CHECKPOINT_PATH, actor, critic)
+        return actor, critic, replay_buffer
+    else
+        println("No checkpoint found. Training models from scratch")
+        actor, critic = build_td3_model(env)
+        replay_buffer = PrioritizedReplayBuffer(CAPACITY, N_SAMPLES, ALPHA, BETA, BETA_INCREMENT, EPS)
+        return actor, critic, replay_buffer
     end
 end
