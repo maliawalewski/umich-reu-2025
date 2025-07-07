@@ -561,7 +561,7 @@ function test_td3!(
         done = false
 
         curr_rewards = []
-        curr_actions_taken = [] 
+        curr_actions_taken = []
 
         while !done
             global_timestep += 1
@@ -584,13 +584,17 @@ function test_td3!(
 
             r = Float32(env.reward)
 
-            if global_timestep % 1 == 0
+            if global_timestep % 100 == 0
                 println("Raw action: $action, reward: $r")
             end
 
             push!(curr_rewards, r)
 
             done = is_terminated(env)
+        end
+
+        if idx % 1000 == 0 
+            println("testing on ideal: $idx")
         end
 
         push!(rewards, curr_rewards)
