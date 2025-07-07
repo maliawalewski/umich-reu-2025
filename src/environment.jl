@@ -4,9 +4,9 @@ include("data.jl")
 
 # Scaling parameters
 ACTION_SCALE = 1e3 # Scales action to integers 
-n_cols_list = Float64[]
-pair_degrees = Int[]
-pair_counts = Int[]
+# n_cols_list = Float64[]
+# pair_degrees = Int[]
+# pair_counts = Int[]
 
 mutable struct Environment
     num_vars::Int
@@ -109,7 +109,6 @@ function act!(env::Environment, raw_action::Vector{Float32})
     env.state = action
 
     action = Int.(round.(ACTION_SCALE * action))
-    println("scaled action: $action")
     # println("weighting for groebner: ", action)
 
     weights = zip(env.variables, action)
@@ -192,9 +191,9 @@ function reward(trace::Groebner.WrappedTrace)
             pair_degree = t.critical_pair_sequence[i][1]
             pair_count = t.critical_pair_sequence[i][2]
 
-            push!(n_cols_list, n_cols)
-            push!(pair_degrees, pair_degree)
-            push!(pair_counts, pair_count)
+            # push!(n_cols_list, n_cols)
+            # push!(pair_degrees, pair_degree)
+            # push!(pair_counts, pair_count)
 
             total_reward +=
                 (Float64(n_cols)) * Float64(log(pair_degree)) * (Float64(pair_count))

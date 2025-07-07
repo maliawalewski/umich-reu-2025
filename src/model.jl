@@ -8,6 +8,7 @@ using LinearAlgebra
 using BSON
 include("environment.jl")
 include("utils.jl")
+# plotlyjs()
 
 # Environment parameters
 NUM_VARS = 3
@@ -18,12 +19,15 @@ NUM_TERMS = 17 # Number of terms in each polynomial
 MAX_ITERATIONS = 25 # Maximum iterations per episode (i.e. steps per episode)
 
 # TD3 parameters
-EPISODES = 1000
+EPISODES = 5_000
 GAMMA = 0.99 # Discount factor
 TAU = 0.05 # Soft update parameter
-LR = 1e-4 # Learning rate for actor and critics
-MIN_LR = 1e-5 # Minimum Learning Rate
-LR_DECAY = (LR - MIN_LR) / (EPISODES - (EPISODES / 10)) # LR decay Rate (edit so we don't hardcode 5000)
+ACTOR_LR = 1e-4 # Learning rate for actor and critics
+ACTOR_MIN_LR = 1e-5 # Minimum Learning Rate
+ACTOR_LR_DECAY = (ACTOR_LR - ACTOR_MIN_LR) / (EPISODES) # - (EPISODES / 10) 
+CRITIC_LR = 1e-4
+CRITIC_MIN_LR = 1e-7
+CRITIC_LR_DECAY = (CRITIC_LR - CRITIC_MIN_LR) / (EPISODES) # - (EPISODES / 10) 
 STD = 0.002 # Standard deviation for exploration noise
 D = 100 # Update frequency for target actor and critics 
 
@@ -163,12 +167,12 @@ function build_td3_model(env::Environment)
     critic_1_target = deepcopy(critic_1)
     critic_2_target = deepcopy(critic_2)
 
-    actor_opt = ADAM(LR)
+    actor_opt = ADAM(ACTOR_LR)
     # actor_opt = Optimisers.OptimiserChain(Optimisers.ClipNorm(10), Optimisers.ADAM(LR))
     actor_opt_state = Flux.setup(actor_opt, actor)
 
-    critic_1_opt = ADAM(LR)
-    critic_2_opt = ADAM(LR)
+    critic_1_opt = ADAM(CRITIC_LR)
+    critic_2_opt = ADAM(CRITIC_LR)
     # critic_1_opt = Optimisers.OptimiserChain(Optimisers.ClipNorm(10), Optimisers.ADAM(LR))
     # critic_2_opt = Optimisers.OptimiserChain(Optimisers.ClipNorm(10), Optimisers.ADAM(LR))
 
@@ -193,7 +197,8 @@ function train_td3!(
     critic::Critics,
     env::Environment,
     replay_buffer::PrioritizedReplayBuffer,
-    initial_lr::Float64,
+    initial_actor_lr::Float64,
+    initial_critic_lr::Float64
 )
 
     losses = []
@@ -202,7 +207,8 @@ function train_td3!(
     losses_1 = []
     losses_2 = []
 
-    current_lr = initial_lr
+    current_actor_lr = initial_actor_lr
+    current_critic_lr = initial_critic_lr
 
     # base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
     base_sets = BASE_SET # Using hardcoded CV base sets
@@ -260,7 +266,6 @@ function train_td3!(
             action = vec(Float32.(raw_action + epsilon))
 
             basis = act!(env, action)
-            # println("Basis 1 size: ", length(basis[1]), "l Basis 3 size: ", length(basis[3]), ", Basis 7 size: ", length(basis[7]))
 
             s_next = Float32.(state(env))
             push!(actions_taken, s_next)
@@ -273,14 +278,11 @@ function train_td3!(
 
             r = Float32(env.reward)
 
-            if global_timestep % 1 == 0
-                println("Raw action: $raw_action, reward: $r")
+            if global_timestep % 11 == 0
+                println("Timestep: $global_timestep, Raw action: $raw_action, reward: $r")
             end
 
-            # r = clamp(r, -300f0, 500f0)
             push!(rewards, r)
-
-            # println("t: ", t, ", Raw action: ", raw_action, ", Epsilon: ", epsilon, ", Reward: ", r)
             
 
             done = is_terminated(env)
@@ -349,6 +351,9 @@ function train_td3!(
             end
 
             push!(losses_1, loss1)
+            if i >= 4900 
+                println("Critic 1 loss: $loss1")
+            end
 
             Flux.update!(critic.critic_1_opt_state, critic.critic_1, back1[1])
 
@@ -363,7 +368,6 @@ function train_td3!(
 
             # Updating every D episodes 
             if global_timestep % D == 0
-                # println("updating target networks and online actor loss")
                 actor_loss, back = Flux.withgradient(actor.actor) do model
                     a_pred = model(s_input_batch)
                     q_val = critic.critic_1(vcat(s_input_batch, a_pred))
@@ -373,7 +377,6 @@ function train_td3!(
                 push!(losses, actor_loss)
 
                 grads = back[1]
-                # println("gradient: ", grads)
                 Flux.update!(actor.actor_opt_state, actor.actor, grads)
 
                 soft_update!(critic.critic_1_target, critic.critic_1)
@@ -398,10 +401,12 @@ function train_td3!(
             println("Saved TD3 checkpoint to $CHECKPOINT_PATH at episode $i")
         end
 
-        current_lr = max(MIN_LR, current_lr - LR_DECAY)
-        Flux.adjust!(actor.actor_opt_state, current_lr)
-        Flux.adjust!(critic.critic_1_opt_state, current_lr)
-        Flux.adjust!(critic.critic_2_opt_state, current_lr)
+        current_actor_lr = max(ACTOR_MIN_LR, current_actor_lr - ACTOR_LR_DECAY)
+        current_critic_lr = max(CRITIC_MIN_LR, current_critic_lr - CRITIC_LR_DECAY)
+
+        Flux.adjust!(actor.actor_opt_state, current_actor_lr)
+        Flux.adjust!(critic.critic_1_opt_state, current_critic_lr)
+        Flux.adjust!(critic.critic_2_opt_state, current_critic_lr)
 
     end
 
@@ -414,12 +419,12 @@ function train_td3!(
         ylabel = "Loss",
         label = "Actor Loss",
         color = :red,       
-        markersize = 2,     
+        markersize = 1,     
         markerstrokewidth = 0, # Removes the border around the dots
         legend = :topleft,
     )
 
-    savefig(loss_plot, "actor_plot.pdf")
+    savefig(loss_plot, "actor_plot_batch10_LRdecay_1e7.html")
 
     episodes2 = 1:length(rewards)
     reward_plot = scatter(
@@ -430,12 +435,12 @@ function train_td3!(
         ylabel = "Reward",
         label = "Reward",
         color = :green,
-        markersize = 2,
+        markersize = 1,
         markerstrokewidth = 0,
         legend = :bottomright,
     )
 
-    savefig(reward_plot, "reward_plot.pdf")
+    savefig(reward_plot, "reward_plot_batch10_LRdecay_1e7.html")
 
     episodes_critic1 = 1:length(losses_1)
     episodes_critic2 = 1:length(losses_2)
@@ -445,7 +450,7 @@ function train_td3!(
         [losses_1 losses_2],
         layout = (2, 1),
         legend = :topright,
-        markersize = 2,
+        markersize = 1,
         markerstrokewidth = 0,
         color = [:purple :blue], 
         xlabel = "Time step",
@@ -454,41 +459,41 @@ function train_td3!(
         title = ["Critic 1" "Critic 2"],
     )
 
-    savefig(critic_plot, "critics_plot.pdf")
+    savefig(critic_plot, "critics_plot_batch10_LRdecay_1e7.html")
 
 
-    n_cols_plot = scatter(1:length(n_cols_list), n_cols_list,
-        title = "n_cols over time",
-        xlabel = "Step",
-        ylabel = "n_cols",
-        label = "n_cols",
-        markersize = 2,
-        markerstrokewidth = 0,
-        color = :orange)
+    # n_cols_plot = scatter(1:length(n_cols_list), n_cols_list,
+    #     title = "n_cols over time",
+    #     xlabel = "Step",
+    #     ylabel = "n_cols",
+    #     label = "n_cols",
+    #     markersize = 1,
+    #     markerstrokewidth = 0,
+    #     color = :orange)
 
-    savefig(n_cols_plot, "n_cols_plot.pdf")
+    # savefig(n_cols_plot, "n_cols_plot.pdf")
 
-    n_deg_plot = scatter(1:length(pair_degrees), pair_degrees,
-        title = "Pair Degrees over time",
-        xlabel = "Step",
-        ylabel = "pair_degree",
-        label = "degree",
-        markersize = 2,
-        markerstrokewidth = 0,
-        color = :cyan)
+    # n_deg_plot = scatter(1:length(pair_degrees), pair_degrees,
+    #     title = "Pair Degrees over time",
+    #     xlabel = "Step",
+    #     ylabel = "pair_degree",
+    #     label = "degree",
+    #     markersize = 1,
+    #     markerstrokewidth = 0,
+    #     color = :cyan)
     
-    savefig(n_deg_plot, "pair_degrees_plot.pdf")
+    # savefig(n_deg_plot, "pair_degrees_plot.pdf")
 
-    n_cts_plot = scatter(1:length(pair_counts), pair_counts,
-        title = "Pair Counts over time",
-        xlabel = "Step",
-        ylabel = "pair_count",
-        label = "count",
-        markersize = 2,
-        markerstrokewidth = 0,
-        color = :magenta)
+    # n_cts_plot = scatter(1:length(pair_counts), pair_counts,
+    #     title = "Pair Counts over time",
+    #     xlabel = "Step",
+    #     ylabel = "pair_count",
+    #     label = "count",
+    #     markersize = 1,
+    #     markerstrokewidth = 0,
+    #     color = :magenta)
 
-    savefig(n_cts_plot, "pair_counts_plot.pdf")
+    # savefig(n_cts_plot, "pair_counts_plot.pdf")
 
 end
 
