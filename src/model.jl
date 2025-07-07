@@ -8,7 +8,7 @@ using LinearAlgebra
 using BSON
 include("environment.jl")
 include("utils.jl")
-# plotlyjs()
+plotlyjs()
 
 # Environment parameters
 NUM_VARS = 3
@@ -19,15 +19,15 @@ NUM_TERMS = 17 # Number of terms in each polynomial
 MAX_ITERATIONS = 25 # Maximum iterations per episode (i.e. steps per episode)
 
 # TD3 parameters
-EPISODES = 5_000
+EPISODES = 10_000
 GAMMA = 0.99 # Discount factor
 TAU = 0.05 # Soft update parameter
 ACTOR_LR = 1e-4 # Learning rate for actor and critics
 ACTOR_MIN_LR = 1e-5 # Minimum Learning Rate
-ACTOR_LR_DECAY = (ACTOR_LR - ACTOR_MIN_LR) / (EPISODES) # - (EPISODES / 10) 
+ACTOR_LR_DECAY = (ACTOR_LR - ACTOR_MIN_LR) / (EPISODES - (EPISODES / 10))
 CRITIC_LR = 1e-4
-CRITIC_MIN_LR = 1e-7
-CRITIC_LR_DECAY = (CRITIC_LR - CRITIC_MIN_LR) / (EPISODES) # - (EPISODES / 10) 
+CRITIC_MIN_LR = 1e-6
+CRITIC_LR_DECAY = (CRITIC_LR - CRITIC_MIN_LR) / (EPISODES - (EPISODES / 10))
 STD = 0.002 # Standard deviation for exploration noise
 D = 100 # Update frequency for target actor and critics 
 
@@ -43,12 +43,12 @@ EPS = 0.01f0
 MAX_DEGREE = 4
 MAX_ATTEMPTS = 100
 NUM_TEST_IDEALS = 100_000
-BASE_SET_PATH = "data/base_sets.bin"
+BASE_SET_PATH = "src/data/base_sets.bin"
 
 # save/load model 
-CHECKPOINT_PATH = "weights/td3_checkpoint.bson"
+CHECKPOINT_PATH = "src/weights/td3_checkpoint.bson"
 
-BASE_SET = Vector{Any}([
+BASE_SET = Vector{Any}([ # triangulation paper
     [
         [4, 2, 0], [4, 0, 2], [3, 3, 0], [3, 2, 1], [3, 2, 0],
         [3, 1, 2], [3, 0, 3], [3, 0, 2], [1, 3, 2], [1, 2, 3],
@@ -66,6 +66,33 @@ BASE_SET = Vector{Any}([
         [2, 4, 0], [2, 3, 1], [2, 3, 0], [2, 2, 1], [2, 2, 0],
         [2, 1, 3], [2, 0, 4], [2, 0, 3], [1, 2, 3], [0, 3, 3],
         [0, 2, 4], [0, 2, 3]
+    ]
+])
+
+BASE_SET_2 = Vector{Any}([ # relative pose paper
+    [
+        [3, 0, 2], [3, 0, 1], [3, 0, 0], [2, 1, 2], [1, 2, 2], [0, 3, 2], 
+        [2, 1, 1], [1, 2, 1], [0, 3, 1], [2, 1, 0], [1, 1, 2], [2, 0, 2],
+        [0, 2, 2], [1, 0, 3], [1, 2, 0], [0, 3, 0], [2, 0, 1], [0, 1, 3], 
+        [1, 1, 1], [0, 2, 1], [1, 0, 2], [0, 1, 2], [0, 0, 3], [2, 0, 0], 
+        [1, 1, 0], [0, 2, 0], [1, 0, 1], [0, 1, 1], [0, 0, 2], [1, 0, 0], 
+        [0, 1, 0], [0, 0, 1], [0, 0, 0]
+    ],
+    [
+        [3, 0, 2], [3, 0, 1], [3, 0, 0], [2, 1, 2], [1, 2, 2], [0, 3, 2], 
+        [2, 1, 1], [1, 2, 1], [0, 3, 1], [2, 1, 0], [1, 1, 2], [2, 0, 2],
+        [0, 2, 2], [1, 0, 3], [1, 2, 0], [0, 3, 0], [2, 0, 1], [0, 1, 3], 
+        [1, 1, 1], [0, 2, 1], [1, 0, 2], [0, 1, 2], [0, 0, 3], [2, 0, 0], 
+        [1, 1, 0], [0, 2, 0], [1, 0, 1], [0, 1, 1], [0, 0, 2], [1, 0, 0], 
+        [0, 1, 0], [0, 0, 1], [0, 0, 0]
+    ],
+    [
+        [3, 0, 2], [3, 0, 1], [3, 0, 0], [2, 1, 2], [1, 2, 2], [0, 3, 2], 
+        [2, 1, 1], [1, 2, 1], [0, 3, 1], [2, 1, 0], [1, 1, 2], [2, 0, 2],
+        [0, 2, 2], [1, 0, 3], [1, 2, 0], [0, 3, 0], [2, 0, 1], [0, 1, 3], 
+        [1, 1, 1], [0, 2, 1], [1, 0, 2], [0, 1, 2], [0, 0, 3], [2, 0, 0], 
+        [1, 1, 0], [0, 2, 0], [1, 0, 1], [0, 1, 1], [0, 0, 2], [1, 0, 0], 
+        [0, 1, 0], [0, 0, 1], [0, 0, 0]
     ]
 ])
 
@@ -346,12 +373,11 @@ function train_td3!(
 
             loss1, back1 = Flux.withgradient(critic.critic_1) do model
                 pred = model(vcat(s_input_batch, a_batch))
-                # mean((pred .- y) .^ 2)
                 Flux.mse(pred, y)
             end
 
             push!(losses_1, loss1)
-            if i >= 4900 
+            if i >= EPISODES - 100
                 println("Critic 1 loss: $loss1")
             end
 
@@ -424,7 +450,7 @@ function train_td3!(
         legend = :topleft,
     )
 
-    savefig(loss_plot, "actor_plot_batch10_LRdecay_1e7.html")
+    savefig(loss_plot, "actor_plot_longrun.html")
 
     episodes2 = 1:length(rewards)
     reward_plot = scatter(
@@ -440,7 +466,7 @@ function train_td3!(
         legend = :bottomright,
     )
 
-    savefig(reward_plot, "reward_plot_batch10_LRdecay_1e7.html")
+    savefig(reward_plot, "reward_plot_longrun.html")
 
     episodes_critic1 = 1:length(losses_1)
     episodes_critic2 = 1:length(losses_2)
@@ -459,7 +485,7 @@ function train_td3!(
         title = ["Critic 1" "Critic 2"],
     )
 
-    savefig(critic_plot, "critics_plot_batch10_LRdecay_1e7.html")
+    savefig(critic_plot, "critics_plot_longrun.html")
 
 
     # n_cols_plot = scatter(1:length(n_cols_list), n_cols_list,
