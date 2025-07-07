@@ -26,7 +26,7 @@ ACTOR_LR = 1e-4 # Learning rate for actor and critics
 ACTOR_MIN_LR = 1e-5 # Minimum Learning Rate
 ACTOR_LR_DECAY = (ACTOR_LR - ACTOR_MIN_LR) / (EPISODES) # - (EPISODES / 10) 
 CRITIC_LR = 1e-4
-CRITIC_MIN_LR = 1e-7
+CRITIC_MIN_LR = 1e-6
 CRITIC_LR_DECAY = (CRITIC_LR - CRITIC_MIN_LR) / (EPISODES) # - (EPISODES / 10) 
 STD = 0.002 # Standard deviation for exploration noise
 D = 100 # Update frequency for target actor and critics 
@@ -535,7 +535,7 @@ function test_td3!(
         done = false
 
         curr_rewards = []
-        curr_actions_taken = [] 
+        curr_actions_taken = []
 
         while !done
             global_timestep += 1
@@ -558,13 +558,17 @@ function test_td3!(
 
             r = Float32(env.reward)
 
-            if global_timestep % 1 == 0
+            if global_timestep % 100 == 0
                 println("Raw action: $action, reward: $r")
             end
 
             push!(curr_rewards, r)
 
             done = is_terminated(env)
+        end
+
+        if idx % 1000 == 0 
+            println("testing on ideal: $idx")
         end
 
         push!(rewards, curr_rewards)
