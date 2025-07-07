@@ -38,6 +38,7 @@ EPS = 0.01f0
 # Data parameters (used to generate ideal batch)
 MAX_DEGREE = 4
 MAX_ATTEMPTS = 100
+NUM_TEST_IDEALS = 100_000
 BASE_SET_PATH = "data/base_sets.bin"
 
 # save/load model 
@@ -489,6 +490,99 @@ function train_td3!(
 
     savefig(n_cts_plot, "pair_counts_plot.pdf")
 
+end
+
+function test_td3!(
+    actor::Actor,
+    critic::Critics,
+    env::Environment,
+)
+
+    rewards = []
+    actions_taken = []
+
+    # base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
+    base_sets = BASE_SET
+
+    ideals, vars, monomial_matrix = new_generate_data(
+        num_ideals = NUM_TEST_IDEALS,
+        num_polynomials = env.num_polys,
+        num_variables = env.num_vars,
+        max_degree = MAX_DEGREE,
+        num_terms = env.num_terms,
+        max_attempts = MAX_ATTEMPTS,
+        base_sets = base_sets,
+        base_set_path = BASE_SET_PATH,
+        should_save_base_sets = base_sets === nothing,
+    )
+
+    env.variables = vars
+    env.monomial_matrix = monomial_matrix
+    println("Monomial_matrix: ", env.monomial_matrix)
+    
+    global_timestep = 0
+
+    for (idx, ideal) in enumerate(ideals)
+
+        reset_env!(env)
+        env.ideal_batch = [ideal]
+        s = Float32.(state(env))
+        done = false
+
+        curr_rewards = []
+        curr_actions_taken = [] 
+
+        while !done
+            global_timestep += 1
+            function normalize_columns(M::AbstractMatrix)
+                mapslices(x -> x / (norm(x) + 1e-8), M; dims=1)
+            end
+
+            raw_matrix = hcat([reduce(hcat, group) for group in env.monomial_matrix]...)
+            matrix = normalize_columns(raw_matrix)
+
+            s_input = hcat(matrix, s)
+            s_input = reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1))
+            
+            action = vec(actor.actor_target(s_input))
+
+            basis = act!(env, action)
+
+            s_next = Float32.(state(env))
+            push!(curr_actions_taken, s_next)
+
+            r = Float32(env.reward)
+
+            if global_timestep % 1 == 0
+                println("Raw action: $action, reward: $r")
+            end
+
+            push!(curr_rewards, r)
+
+            done = is_terminated(env)
+        end
+
+        push!(rewards, curr_rewards)
+        push!(actions_taken, curr_actions_taken)
+    end
+
+    rewards = mean.(rewards)
+
+    episodes2 = 1:length(rewards)
+    reward_plot = scatter(
+        episodes2,
+        rewards,
+        title = "Reward plot",
+        xlabel = "Time step",
+        ylabel = "Reward",
+        label = "Reward",
+        color = :green,
+        markersize = 2,
+        markerstrokewidth = 0,
+        legend = :bottomright,
+    )
+
+    savefig(reward_plot, "reward_plot.pdf")
 end
 
 function soft_update!(target, policy)
