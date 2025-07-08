@@ -20,7 +20,7 @@ NUM_TERMS = 17 # Number of terms in each polynomial
 MAX_ITERATIONS = 25 # Maximum iterations per episode (i.e. steps per episode)
 
 # TD3 parameters
-EPISODES = 100
+EPISODES = 10_000
 GAMMA = 0.99 # Discount factor
 TAU = 0.05 # Soft update parameter
 ACTOR_LR = 1e-4 # Learning rate for actor and critics
@@ -668,14 +668,14 @@ function test_td3!(
         label = "Agent",
         color = :green,
         linewidth = 2,
-        markersize = 2,
+        markersize = 1,
         markerstrokewidth = 0,
     )
 
     # plot!(
     #     episodes2, lex_rewards,
     #     label = "Lex",
-    #     color = :blue,
+    #     color = :orange,
     #     linewidth = 2,
     #     markersize = 2,
     #     markerstrokewidth = 0,
@@ -683,25 +683,27 @@ function test_td3!(
 
     plot!(
         episodes2, deglex_rewards,
-        label = "DegLex",
-        color = :orange,
+        label = "Grlex",
+        color = :blue,
         linewidth = 2,
-        markersize = 2,
+        markersize = 1,
         markerstrokewidth = 0,
     )
 
     plot!(
         episodes2, grevlex_rewards,
-        label = "DegRevLex",
+        label = "Grevlex",
         color = :red,
         linewidth = 2,
-        markersize = 2,
+        markersize = 1,
         markerstrokewidth = 0,
         xlabel = "Time step",
         ylabel = "Reward",
-        legend = :topright,
+        legend = :bottomleft,
     )
     savefig("reward_comparison.pdf")
+
+
 end
 
 function soft_update!(target, policy)
