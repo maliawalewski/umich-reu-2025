@@ -2,6 +2,7 @@ using Flux
 using DataStructures
 using ReinforcementLearning
 using Statistics
+using Serialization
 using Optimisers
 using Plots
 using LinearAlgebra
@@ -42,11 +43,15 @@ EPS = 0.01f0
 # Data parameters (used to generate ideal batch)
 MAX_DEGREE = 4
 MAX_ATTEMPTS = 100
-NUM_TEST_IDEALS = 100_000
 BASE_SET_PATH = "data/base_sets.bin"
 
 # save/load model 
 CHECKPOINT_PATH = "weights/td3_checkpoint.bson"
+
+# test model
+RESULTS_PATH = "results/"
+NUM_TEST_IDEALS = 100_000
+TEST_BATCH_SIZE = 100
 
 BASE_SET = Vector{Any}([ # triangulation paper
     [
@@ -292,7 +297,7 @@ function train_td3!(
             raw_action = vec((actor.actor(s_input)))
             action = vec(Float32.(raw_action + epsilon))
 
-            basis = act!(env, action)
+            basis = act!(env, action, true)
 
             s_next = Float32.(state(env))
             push!(actions_taken, s_next)
@@ -551,20 +556,19 @@ function test_td3!(
     env.monomial_matrix = monomial_matrix
     println("Monomial_matrix: ", env.monomial_matrix)
     
-    global_timestep = 0
+    test_batch = rand(ideals, TEST_BATCH_SIZE)
+    test_batch_orders = []
+    for (idx, ideal) in enumerate(test_batch)
+        println("running inference on ideal: $idx")
 
-    for (idx, ideal) in enumerate(ideals)
+        reward_map = Dict{NTuple{NUM_VARS, Float32},Float32}()
 
         reset_env!(env)
         env.ideal_batch = [ideal]
         s = Float32.(state(env))
         done = false
 
-        curr_rewards = []
-        curr_actions_taken = []
-
         while !done
-            global_timestep += 1
             function normalize_columns(M::AbstractMatrix)
                 mapslices(x -> x / (norm(x) + 1e-8), M; dims=1)
             end
@@ -576,32 +580,71 @@ function test_td3!(
             s_input = reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1))
             
             action = vec(actor.actor_target(s_input))
-
-            basis = act!(env, action)
+            basis = act!(env, action, false)
 
             s_next = Float32.(state(env))
-            push!(curr_actions_taken, s_next)
-
             r = Float32(env.reward)
-
-            if global_timestep % 100 == 0
-                println("Raw action: $action, reward: $r")
-            end
-
-            push!(curr_rewards, r)
-
+            
+            reward_map[tuple(s_next...)] = r
             done = is_terminated(env)
         end
 
-        if idx % 1000 == 0 
+        push!(test_batch_orders, argmax(reward_map)) 
+
+    end
+    
+    reward_map = Dict{NTuple{NUM_VARS, Float32},Float32}()
+    for order in test_batch_orders
+        println("evaluating order: $order")
+        reset_env!(env)
+        env.ideal_batch = test_batch
+        basis = act!(env, collect(order), false)
+        s_next = Float32.(state(env))
+        r = Float32(env.reward)
+        reward_map[tuple(s_next...)] = r
+    end
+
+    best_order = argmax(reward_map)
+    println("found best order: $best_order with average reward: $(reward_map[best_order])")
+    best_order = collect(best_order)
+
+    agent_rewards = []
+    lex_rewards = []
+    deglex_rewards = []
+    grevlex_rewards = []
+
+    for (idx, ideal) in enumerate(ideals)
+
+        if idx % 100 == 0 
             println("testing on ideal: $idx")
         end
 
-        push!(rewards, curr_rewards)
-        push!(actions_taken, curr_actions_taken)
+        reset_env!(env)
+        env.ideal_batch = [ideal]
+        basis = act!(env, best_order, false)
+        s_next = Float32.(state(env))
+        r = Float32(env.reward)
+        
+        push!(agent_rewards, r)
+
+        lex_trace, lex_basis = groebner_learn(ideal, ordering = Lex())
+        push!(lex_rewards, reward(lex_trace))
+
+        deglex_trace, deglex_basis = groebner_learn(ideal, ordering = DegLex())
+        push!(deglex_rewards, reward(deglex_trace))
+
+        grevlex_trace, grevlex_basis = groebner_learn(ideal, ordering = DegRevLex())
+        push!(grevlex_rewards, reward(grevlex_trace))
+
     end
 
-    rewards = mean.(rewards)
+    serialize(RESULTS_PATH * "agent_order.bin", best_order)
+    serialize(RESULTS_PATH * "agent_rewards.bin", agent_rewards)
+    serialize(RESULTS_PATH * "lex_rewards.bin", lex_rewards)
+    serialize(RESULTS_PATH * "deglex_rewards.bin", deglex_rewards)
+    serialize(RESULTS_PATH * "grevlex_rewards.bin", grevlex_rewards)
+
+    rewards = agent_rewards
 
     episodes2 = 1:length(rewards)
     reward_plot = scatter(

@@ -29,9 +29,9 @@ function main()
     # replay_buffer = CircularBuffer{Transition}(CAPACITY)
     # replay_buffer = PrioritizedReplayBuffer(CAPACITY, N_SAMPLES, ALPHA, BETA, BETA_INCREMENT, EPS)
 
-    train_td3!(actor_struct, critic_struct, env, replay_buffer, ACTOR_LR, CRITIC_LR)
+    # train_td3!(actor_struct, critic_struct, env, replay_buffer, ACTOR_LR, CRITIC_LR)
     
-    # test_td3!(actor_struct, critic_struct, env)
+    test_td3!(actor_struct, critic_struct, env)
 
 end
 

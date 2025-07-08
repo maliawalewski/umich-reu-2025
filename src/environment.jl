@@ -103,7 +103,7 @@ function fill_ideal_batch(
     env.monomial_matrix = monomial_matrix
 end
 
-function act!(env::Environment, raw_action::Vector{Float32})
+function act!(env::Environment, raw_action::Vector{Float32}, use_baseline::Bool)
     # action = make_valid_action_new(env, env.state, raw_action) # Make valid action from NN output and previous state
     action = raw_action
     env.state = action
@@ -114,17 +114,22 @@ function act!(env::Environment, raw_action::Vector{Float32})
     weights = zip(env.variables, action)
     order = WeightedOrdering(weights...)
 
-    cur_reward = Float64(0.0f0)
     total_reward = Float64(0.0f0)
     basis_vector = []
 
     for i = 1:length(env.ideal_batch)
+
         ideal = env.ideal_batch[i]
         trace, basis = groebner_learn(ideal, ordering = order)
-        baseline_trace, baseline_basis = groebner_learn(ideal, ordering = DegRevLex())
-
         basis_vector = push!(basis_vector, basis)
-        total_reward += (reward(trace) - reward(baseline_trace))
+        curr_reward = reward(trace)
+
+        if use_baseline
+            baseline_trace, baseline_basis = groebner_learn(ideal, ordering = DegRevLex())
+            total_reward += (curr_reward - reward(baseline_trace))
+        else 
+            total_reward += curr_reward
+        end
     end
 
     env.reward = total_reward / Float64(length(env.ideal_batch))
