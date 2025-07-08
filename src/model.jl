@@ -20,7 +20,7 @@ NUM_TERMS = 17 # Number of terms in each polynomial
 MAX_ITERATIONS = 25 # Maximum iterations per episode (i.e. steps per episode)
 
 # TD3 parameters
-EPISODES = 10_000
+EPISODES = 100
 GAMMA = 0.99 # Discount factor
 TAU = 0.05 # Soft update parameter
 ACTOR_LR = 1e-4 # Learning rate for actor and critics
@@ -31,6 +31,7 @@ CRITIC_MIN_LR = 1e-6
 CRITIC_LR_DECAY = (CRITIC_LR - CRITIC_MIN_LR) / (EPISODES - (EPISODES / 10))
 STD = 0.002 # Standard deviation for exploration noise
 D = 100 # Update frequency for target actor and critics 
+SAVE_WEIGHTS = 100 
 
 # Prioritized Experience Replay Buffer parameters
 CAPACITY = 1_000_000
@@ -43,14 +44,14 @@ EPS = 0.01f0
 # Data parameters (used to generate ideal batch)
 MAX_DEGREE = 4
 MAX_ATTEMPTS = 100
-BASE_SET_PATH = "data/base_sets.bin"
+BASE_SET_PATH = "src/data/base_sets.bin"
 
 # save/load model 
-CHECKPOINT_PATH = "weights/td3_checkpoint.bson"
+CHECKPOINT_PATH = "src/weights/td3_checkpoint.bson"
 
 # test model
-RESULTS_PATH = "results/"
-NUM_TEST_IDEALS = 100_000
+RESULTS_PATH = "src/results/"
+NUM_TEST_IDEALS = 1000
 TEST_BATCH_SIZE = 100
 
 BASE_SET = Vector{Any}([ # triangulation paper
@@ -427,7 +428,7 @@ function train_td3!(
             println()
         end
 
-        if i % 100 == 0
+        if i % SAVE_WEIGHTS == 0
             @BSON.save(CHECKPOINT_PATH, actor, critic)
             println("Saved TD3 checkpoint to $CHECKPOINT_PATH at episode $i")
         end
@@ -627,8 +628,8 @@ function test_td3!(
         
         push!(agent_rewards, r)
 
-        lex_trace, lex_basis = groebner_learn(ideal, ordering = Lex())
-        push!(lex_rewards, reward(lex_trace))
+        # lex_trace, lex_basis = groebner_learn(ideal, ordering = Lex())
+        # push!(lex_rewards, reward(lex_trace))
 
         deglex_trace, deglex_basis = groebner_learn(ideal, ordering = DegLex())
         push!(deglex_rewards, reward(deglex_trace))
@@ -640,7 +641,7 @@ function test_td3!(
 
     serialize(RESULTS_PATH * "agent_order.bin", best_order)
     serialize(RESULTS_PATH * "agent_rewards.bin", agent_rewards)
-    serialize(RESULTS_PATH * "lex_rewards.bin", lex_rewards)
+    # serialize(RESULTS_PATH * "lex_rewards.bin", lex_rewards)
     serialize(RESULTS_PATH * "deglex_rewards.bin", deglex_rewards)
     serialize(RESULTS_PATH * "grevlex_rewards.bin", grevlex_rewards)
 
@@ -661,6 +662,46 @@ function test_td3!(
     )
 
     savefig(reward_plot, "reward_plot.pdf")
+
+    reward_comparison = plot(
+        episodes2, rewards,
+        label = "Agent",
+        color = :green,
+        linewidth = 2,
+        markersize = 2,
+        markerstrokewidth = 0,
+    )
+
+    # plot!(
+    #     episodes2, lex_rewards,
+    #     label = "Lex",
+    #     color = :blue,
+    #     linewidth = 2,
+    #     markersize = 2,
+    #     markerstrokewidth = 0,
+    # )
+
+    plot!(
+        episodes2, deglex_rewards,
+        label = "DegLex",
+        color = :orange,
+        linewidth = 2,
+        markersize = 2,
+        markerstrokewidth = 0,
+    )
+
+    plot!(
+        episodes2, grevlex_rewards,
+        label = "DegRevLex",
+        color = :red,
+        linewidth = 2,
+        markersize = 2,
+        markerstrokewidth = 0,
+        xlabel = "Time step",
+        ylabel = "Reward",
+        legend = :topright,
+    )
+    savefig("reward_comparison.pdf")
 end
 
 function soft_update!(target, policy)
