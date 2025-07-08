@@ -658,7 +658,7 @@ function test_td3!(
         color = :green,
         markersize = 2,
         markerstrokewidth = 0,
-        legend = :bottomright,
+        legend = :bottomleft,
     )
 
     savefig(reward_plot, "reward_plot.pdf")
@@ -667,7 +667,7 @@ function test_td3!(
         episodes2, rewards,
         label = "Agent",
         color = :green,
-        linewidth = 2,
+        linewidth = 1,
         markersize = 1,
         markerstrokewidth = 0,
     )
@@ -685,7 +685,7 @@ function test_td3!(
         episodes2, deglex_rewards,
         label = "Grlex",
         color = :blue,
-        linewidth = 2,
+        linewidth = 1,
         markersize = 1,
         markerstrokewidth = 0,
     )
@@ -694,7 +694,7 @@ function test_td3!(
         episodes2, grevlex_rewards,
         label = "Grevlex",
         color = :red,
-        linewidth = 2,
+        linewidth = 1,
         markersize = 1,
         markerstrokewidth = 0,
         xlabel = "Time step",
