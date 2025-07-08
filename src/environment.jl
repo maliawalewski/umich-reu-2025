@@ -51,7 +51,7 @@ function init_environment(;
     @assert num_vars > 0 "Number of variables must be greater than 0."
     @assert delta_bound >= 0.0f0 "Delta noise must be non-negative."
 
-    state_i = init_state(num_vars)
+    state_i = init_state(num_vars, num_polys)
     return Environment(
         num_vars,
         delta_bound,
@@ -69,7 +69,7 @@ function init_environment(;
     ) # Added
 end
 
-function init_state(num_vars::Int)
+function init_state(num_vars::Int, num_polys::Int)
     epsilon_vector = 1 .+ rand(Float32, num_vars)
     return epsilon_vector ./ sum(epsilon_vector)  # Normalize to ensure it sums to 1
 end
@@ -225,7 +225,7 @@ end
 function reset_env!(env::Environment)
     # Resets the environment to its initial state
     env.reward = Float64(0.0f0)
-    env.state = init_state(env.num_vars)
+    env.state = init_state(env.num_vars, env.num_polys)
     env.ideal_batch =
         Vector{Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}}()
     env.is_terminated = false

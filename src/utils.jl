@@ -67,7 +67,7 @@ function add_experience!(
     priority = (td_error + buffer.eps) ^ buffer.alpha
     buffer._experiences[buffer._curr_idx] = experience
     buffer._priorities[buffer._curr_idx] = priority
-    buffer._curr_idx = ((buffer._curr_idx + 1) % buffer.capacity)
+    buffer._curr_idx = mod1((buffer._curr_idx + 1), buffer.capacity)
     if buffer._curr_size < buffer.capacity
         buffer._curr_size += 1
     end

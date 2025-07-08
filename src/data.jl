@@ -171,6 +171,7 @@ function new_generate_data(;
     for _ = 1:num_ideals
         ideal, vars = new_generate_ideal(
             num_variables = num_variables,
+            num_polynomials = num_polynomials,
             num_terms = num_terms,
             base_sets = base_sets,
             max_attempts = max_attempts,

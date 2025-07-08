@@ -9,18 +9,18 @@ using LinearAlgebra
 using BSON
 include("environment.jl")
 include("utils.jl")
-plotlyjs()
+# plotlyjs()
 
 # Environment parameters
 NUM_VARS = 3
 DELTA_BOUND = 0.1f0 # Max shift from current state
-NUM_POLYS = NUM_VARS # For now, number of polynomials is equal to number of variables
+NUM_POLYS = 10 # For now, number of polynomials is equal to number of variables
 NUM_IDEALS = 10 # Number of ideals per episode
-NUM_TERMS = 17 # Number of terms in each polynomial
+NUM_TERMS = 33 # Number of terms in each polynomial
 MAX_ITERATIONS = 25 # Maximum iterations per episode (i.e. steps per episode)
 
 # TD3 parameters
-EPISODES = 100
+EPISODES = 10_000
 GAMMA = 0.99 # Discount factor
 TAU = 0.05 # Soft update parameter
 ACTOR_LR = 1e-4 # Learning rate for actor and critics
@@ -51,7 +51,7 @@ CHECKPOINT_PATH = "src/weights/td3_checkpoint.bson"
 
 # test model
 RESULTS_PATH = "src/results/"
-NUM_TEST_IDEALS = 1000
+NUM_TEST_IDEALS = 100_000
 TEST_BATCH_SIZE = 100
 
 BASE_SET = Vector{Any}([ # triangulation paper
@@ -76,6 +76,62 @@ BASE_SET = Vector{Any}([ # triangulation paper
 ])
 
 BASE_SET_2 = Vector{Any}([ # relative pose paper
+    [
+        [3, 0, 2], [3, 0, 1], [3, 0, 0], [2, 1, 2], [1, 2, 2], [0, 3, 2], 
+        [2, 1, 1], [1, 2, 1], [0, 3, 1], [2, 1, 0], [1, 1, 2], [2, 0, 2],
+        [0, 2, 2], [1, 0, 3], [1, 2, 0], [0, 3, 0], [2, 0, 1], [0, 1, 3], 
+        [1, 1, 1], [0, 2, 1], [1, 0, 2], [0, 1, 2], [0, 0, 3], [2, 0, 0], 
+        [1, 1, 0], [0, 2, 0], [1, 0, 1], [0, 1, 1], [0, 0, 2], [1, 0, 0], 
+        [0, 1, 0], [0, 0, 1], [0, 0, 0]
+    ],
+    [
+        [3, 0, 2], [3, 0, 1], [3, 0, 0], [2, 1, 2], [1, 2, 2], [0, 3, 2], 
+        [2, 1, 1], [1, 2, 1], [0, 3, 1], [2, 1, 0], [1, 1, 2], [2, 0, 2],
+        [0, 2, 2], [1, 0, 3], [1, 2, 0], [0, 3, 0], [2, 0, 1], [0, 1, 3], 
+        [1, 1, 1], [0, 2, 1], [1, 0, 2], [0, 1, 2], [0, 0, 3], [2, 0, 0], 
+        [1, 1, 0], [0, 2, 0], [1, 0, 1], [0, 1, 1], [0, 0, 2], [1, 0, 0], 
+        [0, 1, 0], [0, 0, 1], [0, 0, 0]
+    ],
+    [
+        [3, 0, 2], [3, 0, 1], [3, 0, 0], [2, 1, 2], [1, 2, 2], [0, 3, 2], 
+        [2, 1, 1], [1, 2, 1], [0, 3, 1], [2, 1, 0], [1, 1, 2], [2, 0, 2],
+        [0, 2, 2], [1, 0, 3], [1, 2, 0], [0, 3, 0], [2, 0, 1], [0, 1, 3], 
+        [1, 1, 1], [0, 2, 1], [1, 0, 2], [0, 1, 2], [0, 0, 3], [2, 0, 0], 
+        [1, 1, 0], [0, 2, 0], [1, 0, 1], [0, 1, 1], [0, 0, 2], [1, 0, 0], 
+        [0, 1, 0], [0, 0, 1], [0, 0, 0]
+    ],
+    [
+        [3, 0, 2], [3, 0, 1], [3, 0, 0], [2, 1, 2], [1, 2, 2], [0, 3, 2], 
+        [2, 1, 1], [1, 2, 1], [0, 3, 1], [2, 1, 0], [1, 1, 2], [2, 0, 2],
+        [0, 2, 2], [1, 0, 3], [1, 2, 0], [0, 3, 0], [2, 0, 1], [0, 1, 3], 
+        [1, 1, 1], [0, 2, 1], [1, 0, 2], [0, 1, 2], [0, 0, 3], [2, 0, 0], 
+        [1, 1, 0], [0, 2, 0], [1, 0, 1], [0, 1, 1], [0, 0, 2], [1, 0, 0], 
+        [0, 1, 0], [0, 0, 1], [0, 0, 0]
+    ],
+    [
+        [3, 0, 2], [3, 0, 1], [3, 0, 0], [2, 1, 2], [1, 2, 2], [0, 3, 2], 
+        [2, 1, 1], [1, 2, 1], [0, 3, 1], [2, 1, 0], [1, 1, 2], [2, 0, 2],
+        [0, 2, 2], [1, 0, 3], [1, 2, 0], [0, 3, 0], [2, 0, 1], [0, 1, 3], 
+        [1, 1, 1], [0, 2, 1], [1, 0, 2], [0, 1, 2], [0, 0, 3], [2, 0, 0], 
+        [1, 1, 0], [0, 2, 0], [1, 0, 1], [0, 1, 1], [0, 0, 2], [1, 0, 0], 
+        [0, 1, 0], [0, 0, 1], [0, 0, 0]
+    ],
+    [
+        [3, 0, 2], [3, 0, 1], [3, 0, 0], [2, 1, 2], [1, 2, 2], [0, 3, 2], 
+        [2, 1, 1], [1, 2, 1], [0, 3, 1], [2, 1, 0], [1, 1, 2], [2, 0, 2],
+        [0, 2, 2], [1, 0, 3], [1, 2, 0], [0, 3, 0], [2, 0, 1], [0, 1, 3], 
+        [1, 1, 1], [0, 2, 1], [1, 0, 2], [0, 1, 2], [0, 0, 3], [2, 0, 0], 
+        [1, 1, 0], [0, 2, 0], [1, 0, 1], [0, 1, 1], [0, 0, 2], [1, 0, 0], 
+        [0, 1, 0], [0, 0, 1], [0, 0, 0]
+    ],
+    [
+        [3, 0, 2], [3, 0, 1], [3, 0, 0], [2, 1, 2], [1, 2, 2], [0, 3, 2], 
+        [2, 1, 1], [1, 2, 1], [0, 3, 1], [2, 1, 0], [1, 1, 2], [2, 0, 2],
+        [0, 2, 2], [1, 0, 3], [1, 2, 0], [0, 3, 0], [2, 0, 1], [0, 1, 3], 
+        [1, 1, 1], [0, 2, 1], [1, 0, 2], [0, 1, 2], [0, 0, 3], [2, 0, 0], 
+        [1, 1, 0], [0, 2, 0], [1, 0, 1], [0, 1, 1], [0, 0, 2], [1, 0, 0], 
+        [0, 1, 0], [0, 0, 1], [0, 0, 0]
+    ],
     [
         [3, 0, 2], [3, 0, 1], [3, 0, 0], [2, 1, 2], [1, 2, 2], [0, 3, 2], 
         [2, 1, 1], [1, 2, 1], [0, 3, 1], [2, 1, 0], [1, 1, 2], [2, 0, 2],
@@ -151,7 +207,7 @@ function build_td3_model(env::Environment)
     # Original dense layer actor
     actor = Flux.Chain(
         Dense(
-            ((env.num_vars * env.num_terms) + 1) * env.num_vars,
+            ((env.num_vars * env.num_terms) + 1) * env.num_polys,
             ACTOR_HIDDEN_WIDTH,
             relu,
         ),
@@ -173,7 +229,7 @@ function build_td3_model(env::Environment)
     # Original dense layer critics
     critic_1 = Flux.Chain(
         Dense(
-            ((env.num_vars * env.num_terms) + 2) * env.num_vars,
+            ((env.num_vars * env.num_terms) + 2) * env.num_polys,
             CRITIC_HIDDEN_WIDTH,
             relu,
         ),
@@ -183,7 +239,7 @@ function build_td3_model(env::Environment)
     )
     critic_2 = Flux.Chain(
         Dense(
-            ((env.num_vars * env.num_terms) + 2) * env.num_vars,
+            ((env.num_vars * env.num_terms) + 2) * env.num_polys,
             CRITIC_HIDDEN_WIDTH,
             relu,
         ),
@@ -244,7 +300,7 @@ function train_td3!(
     current_critic_lr = initial_critic_lr
 
     # base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
-    base_sets = BASE_SET # Using hardcoded CV base sets
+    base_sets = BASE_SET_2 # Using hardcoded CV base sets
 
     ideals, vars, monomial_matrix = new_generate_data(
         num_ideals = EPISODES * NUM_IDEALS,
@@ -284,16 +340,14 @@ function train_td3!(
         while !done
             global_timestep += 1
             epsilon = randn(env.num_vars, 1) .* STD
-
-            function normalize_columns(M::AbstractMatrix)
-                mapslices(x -> x / (norm(x) + 1e-8), M; dims=1)
-            end
-
-            raw_matrix = hcat([reduce(hcat, group) for group in env.monomial_matrix]...)
+            
+            raw_matrix = vcat([collect(Iterators.flatten(row))' for row in env.monomial_matrix]...)
             matrix = normalize_columns(raw_matrix)
 
-            s_input = hcat(matrix, s)
-            s_input = reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1))
+            padded_s = vcat(s, zeros(Float32, env.num_polys - env.num_vars))
+            s_input = hcat(matrix, padded_s)
+            s_input = reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_polys, 1))
+            s_input = Float32.(s_input)
             
             raw_action = vec((actor.actor(s_input)))
             action = vec(Float32.(raw_action + epsilon))
@@ -303,10 +357,11 @@ function train_td3!(
             s_next = Float32.(state(env))
             push!(actions_taken, s_next)
 
-            s_next_input = hcat(matrix, s_next)
+            padded_s_next = vcat(s_next, zeros(Float32, env.num_polys - env.num_vars))
+            s_next_input = hcat(matrix, padded_s_next)
             s_next_input = reshape(
                 s_next_input,
-                (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1),
+                (((env.num_vars * env.num_terms) + 1) * env.num_polys, 1),
             )
 
             r = Float32(env.reward)
@@ -326,7 +381,7 @@ function train_td3!(
                 # push!(replay_buffer, Transition(s, action, r, s_next, s_input, s_next_input)) # All actions are raw outputs (no valid actions)
                 add_experience!(
                     replay_buffer,
-                    Transition(s, action, r, s_next, s_input, s_next_input),
+                    Transition(padded_s, padded_s_next, r, padded_s_next, s_input, s_next_input),
                     abs(r),
                 )
             end
@@ -346,7 +401,7 @@ function train_td3!(
             r_batch = hcat([b.r for b in batch]...)
             s_next_batch = hcat(
                 [
-                    b.s_next !== nothing ? b.s_next : zeros(Float32, env.num_vars) for
+                    b.s_next !== nothing ? b.s_next : zeros(Float32, env.num_polys) for
                     b in batch
                 ]...,
             )
@@ -354,7 +409,7 @@ function train_td3!(
             s_next_input_batch = hcat(
                 [
                     b.s_next_input !== nothing ? b.s_next_input :
-                    zeros(Float32, ((env.num_vars * env.num_terms) + 1) * env.num_vars)
+                    zeros(Float32, ((env.num_vars * env.num_terms) + 1) * env.num_polys)
                     for b in batch
                 ]...,
             )
@@ -363,22 +418,23 @@ function train_td3!(
             epsilon = clamp.(randn(1, N_SAMPLES) * STD, -0.05f0, 0.05f0)
 
             target_action = actor.actor_target(s_next_input_batch) .+ epsilon
+            target_action = vcat(target_action, zeros(Float32, env.num_polys - env.num_vars, N_SAMPLES))
             target_action = Float32.(target_action)
 
             critic_1_target_val =
-                critic.critic_1_target(vcat(s_next_input_batch, target_action))
+                critic.critic_1_target(Float32.(vcat(s_next_input_batch, target_action)))
             critic_2_target_val =
-                critic.critic_2_target(vcat(s_next_input_batch, target_action))
+                critic.critic_2_target(Float32.(vcat(s_next_input_batch, target_action)))
 
             min_q = min.(critic_1_target_val, critic_2_target_val)
 
             y = r_batch .+ GAMMA .* not_done .* min_q
-            pred = critic.critic_1(vcat(s_input_batch, a_batch))
+            pred = critic.critic_1(Float32.(vcat(s_input_batch, a_batch)))
             errors = vec(Float32.(abs.(pred .- y)))
             update_priorities!(replay_buffer, indices, errors)
 
             loss1, back1 = Flux.withgradient(critic.critic_1) do model
-                pred = model(vcat(s_input_batch, a_batch))
+                pred = model(Float32.(vcat(s_input_batch, a_batch)))
                 Flux.mse(pred, y)
             end
 
@@ -390,7 +446,7 @@ function train_td3!(
             Flux.update!(critic.critic_1_opt_state, critic.critic_1, back1[1])
 
             loss2, back2 = Flux.withgradient(critic.critic_2) do model
-                pred = model(vcat(s_input_batch, a_batch))
+                pred = model(Float32.(vcat(s_input_batch, a_batch)))
                 Flux.mse(pred, y)
             end
 
@@ -401,8 +457,9 @@ function train_td3!(
             # Updating every D episodes 
             if global_timestep % D == 0
                 actor_loss, back = Flux.withgradient(actor.actor) do model
-                    a_pred = model(s_input_batch)
-                    q_val = critic.critic_1(vcat(s_input_batch, a_pred))
+                    a_pred = model(Float32.(s_input_batch))
+                    a_pred = vcat(a_pred, zeros(Float32, env.num_polys - env.num_vars, N_SAMPLES))
+                    q_val = critic.critic_1(Float32.(vcat(s_input_batch, a_pred)))
                     -mean(q_val)
                 end
 
@@ -456,7 +513,7 @@ function train_td3!(
         legend = :topleft,
     )
 
-    savefig(loss_plot, "actor_plot_longrun.html")
+    savefig(loss_plot, "actor_plot_newbase.pdf")
 
     episodes2 = 1:length(rewards)
     reward_plot = scatter(
@@ -472,7 +529,7 @@ function train_td3!(
         legend = :bottomright,
     )
 
-    savefig(reward_plot, "reward_plot_longrun.html")
+    savefig(reward_plot, "reward_plot_newbase.pdf")
 
     episodes_critic1 = 1:length(losses_1)
     episodes_critic2 = 1:length(losses_2)
@@ -491,7 +548,7 @@ function train_td3!(
         title = ["Critic 1" "Critic 2"],
     )
 
-    savefig(critic_plot, "critics_plot_longrun.html")
+    savefig(critic_plot, "critics_plot_newbase.pdf")
 
 
     # n_cols_plot = scatter(1:length(n_cols_list), n_cols_list,
@@ -539,7 +596,7 @@ function test_td3!(
     actions_taken = []
 
     # base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
-    base_sets = BASE_SET
+    base_sets = BASE_SET_2
 
     ideals, vars, monomial_matrix = new_generate_data(
         num_ideals = NUM_TEST_IDEALS,
@@ -570,15 +627,11 @@ function test_td3!(
         done = false
 
         while !done
-            function normalize_columns(M::AbstractMatrix)
-                mapslices(x -> x / (norm(x) + 1e-8), M; dims=1)
-            end
-
             raw_matrix = hcat([reduce(hcat, group) for group in env.monomial_matrix]...)
             matrix = normalize_columns(raw_matrix)
 
             s_input = hcat(matrix, s)
-            s_input = reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_vars, 1))
+            s_input = reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_polys, 1))
             
             action = vec(actor.actor_target(s_input))
             basis = act!(env, action, false)
@@ -661,14 +714,14 @@ function test_td3!(
         legend = :bottomright,
     )
 
-    savefig(reward_plot, "reward_plot.pdf")
+    savefig(reward_plot, "reward_plot_longertraining.pdf")
 
     reward_comparison = plot(
         episodes2, rewards,
         label = "Agent",
         color = :green,
-        linewidth = 2,
-        markersize = 2,
+        linewidth = 1,
+        markersize = 1,
         markerstrokewidth = 0,
     )
 
@@ -683,23 +736,23 @@ function test_td3!(
 
     plot!(
         episodes2, deglex_rewards,
-        label = "DegLex",
+        label = "Grlex",
         color = :orange,
-        linewidth = 2,
-        markersize = 2,
+        linewidth = 1,
+        markersize = 1,
         markerstrokewidth = 0,
     )
 
     plot!(
         episodes2, grevlex_rewards,
-        label = "DegRevLex",
+        label = "Grevlex",
         color = :red,
-        linewidth = 2,
-        markersize = 2,
+        linewidth = 1,
+        markersize = 1,
         markerstrokewidth = 0,
         xlabel = "Time step",
         ylabel = "Reward",
-        legend = :topright,
+        legend = :bottomright,
     )
     savefig("reward_comparison.pdf")
 end
@@ -708,6 +761,10 @@ function soft_update!(target, policy)
     for (tp, pp) in zip(Flux.params(target), Flux.params(policy))
         tp .= (1 - TAU) * tp .+ TAU * pp
     end
+end
+
+function normalize_columns(M::AbstractMatrix)
+    mapslices(x -> x / (norm(x) + 1e-8), M; dims=1)
 end
 
 function load_td3(env::Environment)
