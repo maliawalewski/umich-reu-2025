@@ -711,7 +711,7 @@ function test_td3!(
         color = :green,
         markersize = 2,
         markerstrokewidth = 0,
-        legend = :bottomright,
+        legend = :bottomleft,
     )
 
     savefig(reward_plot, "reward_plot_longertraining.pdf")
@@ -728,7 +728,7 @@ function test_td3!(
     # plot!(
     #     episodes2, lex_rewards,
     #     label = "Lex",
-    #     color = :blue,
+    #     color = :orange,
     #     linewidth = 2,
     #     markersize = 2,
     #     markerstrokewidth = 0,
@@ -737,7 +737,7 @@ function test_td3!(
     plot!(
         episodes2, deglex_rewards,
         label = "Grlex",
-        color = :orange,
+        color = :blue,
         linewidth = 1,
         markersize = 1,
         markerstrokewidth = 0,
@@ -755,6 +755,8 @@ function test_td3!(
         legend = :bottomright,
     )
     savefig("reward_comparison.pdf")
+
+
 end
 
 function soft_update!(target, policy)
