@@ -43,10 +43,10 @@ EPS = 0.01f0
 MAX_DEGREE = 4
 MAX_ATTEMPTS = 100
 NUM_TEST_IDEALS = 100_000
-BASE_SET_PATH = "src/data/base_sets.bin"
+BASE_SET_PATH = "data/base_sets.bin"
 
 # save/load model 
-CHECKPOINT_PATH = "src/weights/td3_checkpoint.bson"
+CHECKPOINT_PATH = "weights/td3_checkpoint.bson"
 
 BASE_SET = Vector{Any}([ # triangulation paper
     [
