@@ -50,7 +50,7 @@ BASE_SET_PATH = "src/data/base_sets.bin"
 CHECKPOINT_PATH = "src/weights/td3_checkpoint.bson"
 
 # test model
-RESULTS_PATH = "src/results/"
+RESULTS_PATH = "results/"
 NUM_TEST_IDEALS = 100_000
 TEST_BATCH_SIZE = 100
 

@@ -418,7 +418,9 @@ BASE_SET = Vector{Any}([ # relative pose paper
 
 dot_products = [(mon, mon[1]*29 + mon[2]*43 + mon[3]*27) for mon in BASE_SET[1]]
 sorted = sort(dot_products, by = x -> -x[2])
-println(sorted)
+# println(sorted)
+
+BASE_SET_PATH = "./test_baseset.bin"
 
 function new_generate_ideal(;
     num_variables::Integer = 3,
@@ -529,8 +531,9 @@ function act(
     weights = zip(vars, action)
     order = WeightedOrdering(weights...)
     trace, _ = groebner_learn(ideal, ordering = order)
-    baseline_trace, _ = groebner_learn(ideal, ordering = DegRevLex())
-    return reward(trace) - reward(baseline_trace)
+    grlex_trace, _ = groebner_learn(ideal, ordering = DegLex())
+    # grevlex_trace, _ = groebner_learn(ideal, ordering = DegRevLex())
+    return (reward(trace) - reward(grlex_trace))
 end
 
 function reward(trace::Groebner.WrappedTrace)
@@ -552,15 +555,19 @@ end
 
 base_sets = BASE_SET
 
+base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
+
+println(base_sets)
+
 ideals, vars, monomial_matrix = new_generate_data(
-    num_ideals = 1,
-    num_polynomials = 10,
+    num_ideals = 100,
+    num_polynomials = 3,
     num_variables = 3,
-    max_degree = 5,
-    num_terms = 33,
+    max_degree = 2,
+    num_terms = 5,
     max_attempts = 100,
     base_sets = base_sets,
-    base_set_path = ".",
+    base_set_path = BASE_SET_PATH,
     should_save_base_sets = base_sets === nothing,
 )
 
@@ -568,11 +575,14 @@ ideals, vars, monomial_matrix = new_generate_data(
 reward_map = Dict{NTuple{3,Int},Float64}()
     
 baseline_trace, _ = groebner_learn(ideals[1], ordering = DegRevLex())
-println(reward(baseline_trace))
+println("grevlex: $(reward(baseline_trace))")
 
-for i = 20:80
-    for j = 20:80
-        for k = 20:80
+baseline_trace, _ = groebner_learn(ideals[1], ordering = DegLex())
+println("grlex: $(reward(baseline_trace))")
+
+for i = 53:53
+    for j = 37:37
+        for k = 69:69
             order = (i, j, k)
             r = act([i, j, k], vars, ideals[1])
             println("i: $i, j: $j, k: $k, reward: $r")
@@ -580,6 +590,8 @@ for i = 20:80
         end
     end
 end
+
+# (53, 37, 69)
 
 best_order = argmax(reward_map)
 best_reward = reward_map[best_order]
@@ -590,14 +602,18 @@ worst_reward = reward_map[worst_order]
 println("\nBest reward:  $best_reward  at order = $best_order")
 println("Worst reward: $worst_reward at order = $worst_order")
 
+base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
+
 M = 100_000
 ideals_test, _, _ = new_generate_data(
     num_ideals = M,
-    num_polynomials = 10,
+    num_polynomials = 3,
     num_variables = 3,
-    max_degree = 4,
-    num_terms = 33,
-    base_sets = BASE_SET,
+    max_degree = 2,
+    num_terms = 5,
+    base_sets = base_sets,
+    base_set_path = BASE_SET_PATH,
+    should_save_base_sets = base_sets === nothing,
 )
 
 wvec = collect(best_order)
