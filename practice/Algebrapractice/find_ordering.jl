@@ -3,6 +3,7 @@ using Serialization
 using Statistics
 using Groebner
 
+# triangulation
 BASE_SET = Vector{Any}([
     [
         [4, 2, 0],
@@ -62,8 +63,9 @@ BASE_SET = Vector{Any}([
         [0, 2, 3],
     ],
 ])
-
-BASE_SET = Vector{Any}([ # relative pose paper
+ 
+# relative pose paper
+BASE_SET = Vector{Any}([
     [
         [3, 0, 2],
         [3, 0, 1],
@@ -416,11 +418,6 @@ BASE_SET = Vector{Any}([ # relative pose paper
     ],
 ])
 
-dot_products = [(mon, mon[1]*29 + mon[2]*43 + mon[3]*27) for mon in BASE_SET[1]]
-sorted = sort(dot_products, by = x -> -x[2])
-# println(sorted)
-
-BASE_SET_PATH = "./test_baseset.bin"
 
 function new_generate_ideal(;
     num_variables::Integer = 3,
@@ -553,14 +550,18 @@ function reward(trace::Groebner.WrappedTrace)
     return -total_reward
 end
 
+BASE_SET_PATH = "./test_baseset.bin"
+
 base_sets = BASE_SET
+
+println(base_sets)
 
 base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
 
 println(base_sets)
 
 ideals, vars, monomial_matrix = new_generate_data(
-    num_ideals = 100,
+    num_ideals = 1,
     num_polynomials = 3,
     num_variables = 3,
     max_degree = 2,
@@ -579,6 +580,10 @@ println("grevlex: $(reward(baseline_trace))")
 
 baseline_trace, _ = groebner_learn(ideals[1], ordering = DegLex())
 println("grlex: $(reward(baseline_trace))")
+
+dot_products = [(mon, mon[1]*29 + mon[2]*43 + mon[3]*27) for mon in BASE_SET[1]]
+sorted = sort(dot_products, by = x -> -x[2])
+# println(sorted)
 
 for i = 53:53
     for j = 37:37
