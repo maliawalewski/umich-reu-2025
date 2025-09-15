@@ -23,17 +23,20 @@ function main()
     )
 
     actor_struct, critic_struct, replay_buffer = load_td3(env)
-
-    # actor_struct, critic_struct = build_td3_model(env)
-
-    # replay_buffer = CircularBuffer{Transition}(CAPACITY)
-    # replay_buffer = PrioritizedReplayBuffer(CAPACITY, N_SAMPLES, ALPHA, BETA, BETA_INCREMENT, EPS)
-
-    train_td3!(actor_struct, critic_struct, env, replay_buffer, ACTOR_LR, CRITIC_LR)
+  
+    # train_td3!(actor_struct, critic_struct, env, replay_buffer, ACTOR_LR, CRITIC_LR)
     
     # test_td3!(actor_struct, critic_struct, env)
 
     interpret_results()
+
+    #=
+    # old training functions
+    actor_struct, critic_struct = build_td3_model(env)
+    
+    replay_buffer = CircularBuffer{Transition}(CAPACITY)
+    replay_buffer = PrioritizedReplayBuffer(CAPACITY, N_SAMPLES, ALPHA, BETA, BETA_INCREMENT, EPS)
+    =#
 
 end
 

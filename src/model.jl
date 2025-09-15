@@ -12,16 +12,47 @@ include("utils.jl")
 include("basesets.jl")
 # plotlyjs()
 
+BASE_DIR = @__DIR__
+DATA_DIR = joinpath(BASE_DIR, "data")
+WEIGHTS_DIR = joinpath(BASE_DIR, "weights")
+RESULTS_DIR = joinpath(BASE_DIR, "results")
+PLOTS_DIR = joinpath(BASE_DIR, "plots")
+
+BASE_SET_PATH = joinpath(DATA_DIR, "base_sets.bin")
+CHECKPOINT_PATH = joinpath(WEIGHTS_DIR, "td3_checkpoint.bson")
+
+ACTOR_PLOT_PATH = joinpath(PLOTS_DIR, "actor_plot_newbase.pdf")
+REWARD_PLOT_PATH = joinpath(PLOTS_DIR, "reward_plot_newbase.pdf")
+CRITICS_PLOT_PATH = joinpath(PLOTS_DIR, "critics_plot_newbase.pdf")
+REWARD_CMP_PATH = joinpath(PLOTS_DIR, "reward_comparison.pdf")
+
+for d in (DATA_DIR, WEIGHTS_DIR, RESULTS_DIR, PLOTS_DIR)
+    isdir(d) || mkpath(d)
+end
+
+
 # Environment parameters
+
+#=
+# relative pose paper parameters
 NUM_VARS = 3
 DELTA_BOUND = 0.1f0 # Max shift from current state
 NUM_POLYS = 10 # For now, number of polynomials is equal to number of variables
 NUM_IDEALS = 10 # Number of ideals per episode
 NUM_TERMS = 33 # Number of terms in each polynomial
 MAX_ITERATIONS = 25 # Maximum iterations per episode (i.e. steps per episode)
+=#
+
+# n-Site Phosphorylation parameters 
+NUM_VARS = 2
+DELTA_BOUND = 0.1f0
+NUM_POLYS = 2
+NUM_IDEALS = 10
+NUM_TERMS = 17
+MAX_ITERATIONS = 25
 
 # TD3 parameters
-EPISODES = 10_000
+EPISODES = 1_000
 GAMMA = 0.99 # Discount factor
 TAU = 0.05 # Soft update parameter
 ACTOR_LR = 1e-4 # Learning rate for actor and critics
@@ -32,7 +63,7 @@ CRITIC_MIN_LR = 1e-6
 CRITIC_LR_DECAY = (CRITIC_LR - CRITIC_MIN_LR) / (EPISODES - (EPISODES / 10))
 STD = 0.002 # Standard deviation for exploration noise
 D = 100 # Update frequency for target actor and critics 
-SAVE_WEIGHTS = 100 
+SAVE_WEIGHTS = 100
 
 # Prioritized Experience Replay Buffer parameters
 CAPACITY = 1_000_000
@@ -43,15 +74,18 @@ BETA_INCREMENT = 0.0001f0
 EPS = 0.01f0
 
 # Data parameters (used to generate ideal batch)
+
+#=
+# relative pose paper parameters
 MAX_DEGREE = 4
 MAX_ATTEMPTS = 100
-BASE_SET_PATH = "src/data/base_sets.bin"
+=#
 
-# save/load model 
-CHECKPOINT_PATH = "src/weights/td3_checkpoint.bson"
+# n-Site Phosphorylation parameters 
+MAX_DEGREE = 15
+MAX_ATTEMPTS = 100
 
 # test model
-RESULTS_PATH = "results/"
 NUM_TEST_IDEALS = 100_000
 TEST_BATCH_SIZE = 100
 
@@ -110,7 +144,8 @@ function build_td3_model(env::Environment)
         ),
         Dense(ACTOR_HIDDEN_WIDTH, ACTOR_HIDDEN_WIDTH, relu),
         Dense(ACTOR_HIDDEN_WIDTH, ACTOR_HIDDEN_WIDTH, relu),
-        Dense(ACTOR_HIDDEN_WIDTH, env.num_vars), softmax,
+        Dense(ACTOR_HIDDEN_WIDTH, env.num_vars),
+        softmax,
     )
 
     # LSTM layer actor
@@ -184,7 +219,7 @@ function train_td3!(
     env::Environment,
     replay_buffer::PrioritizedReplayBuffer,
     initial_actor_lr::Float64,
-    initial_critic_lr::Float64
+    initial_critic_lr::Float64,
 )
 
     losses = []
@@ -197,7 +232,7 @@ function train_td3!(
     current_critic_lr = initial_critic_lr
 
     # base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
-    base_sets = RELATIVE_POSE_BASE_SET # Using hardcoded CV base sets
+    base_sets = N_SITE_PHOSPHORYLATION_BASE_SET
 
     ideals, vars, monomial_matrix = new_generate_data(
         num_ideals = EPISODES * NUM_IDEALS,
@@ -224,7 +259,7 @@ function train_td3!(
         start_idx = (i - 1) * NUM_IDEALS + 1
         end_idx = i * NUM_IDEALS
         env.ideal_batch = ideals[start_idx:end_idx]
-        
+
         s = Float32.(state(env))
 
         done = false
@@ -237,15 +272,17 @@ function train_td3!(
         while !done
             global_timestep += 1
             epsilon = randn(env.num_vars, 1) .* STD
-            
-            raw_matrix = vcat([collect(Iterators.flatten(row))' for row in env.monomial_matrix]...)
+
+            raw_matrix =
+                vcat([collect(Iterators.flatten(row))' for row in env.monomial_matrix]...)
             matrix = normalize_columns(raw_matrix)
 
             padded_s = vcat(s, zeros(Float32, env.num_polys - env.num_vars))
             s_input = hcat(matrix, padded_s)
-            s_input = reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_polys, 1))
+            s_input =
+                reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_polys, 1))
             s_input = Float32.(s_input)
-            
+
             raw_action = vec((actor.actor(s_input)))
             action = vec(Float32.(raw_action + epsilon))
 
@@ -268,7 +305,7 @@ function train_td3!(
             end
 
             push!(rewards, r)
-            
+
 
             done = is_terminated(env)
             s_next = done ? nothing : s_next
@@ -278,7 +315,14 @@ function train_td3!(
                 # push!(replay_buffer, Transition(s, action, r, s_next, s_input, s_next_input)) # All actions are raw outputs (no valid actions)
                 add_experience!(
                     replay_buffer,
-                    Transition(padded_s, padded_s_next, r, padded_s_next, s_input, s_next_input),
+                    Transition(
+                        padded_s,
+                        padded_s_next,
+                        r,
+                        padded_s_next,
+                        s_input,
+                        s_next_input,
+                    ),
                     abs(r),
                 )
             end
@@ -306,8 +350,7 @@ function train_td3!(
             s_next_input_batch = hcat(
                 [
                     b.s_next_input !== nothing ? b.s_next_input :
-                    zeros(Float32, ((env.num_vars * env.num_terms) + 1) * env.num_polys)
-                    for b in batch
+                    zeros(Float32, ((env.num_vars * env.num_terms) + 1) * env.num_polys) for b in batch
                 ]...,
             )
             not_done = reshape(Float32.(getfield.(batch, :s_next_input) .!== nothing), 1, :)
@@ -315,7 +358,8 @@ function train_td3!(
             epsilon = clamp.(randn(1, N_SAMPLES) * STD, -0.05f0, 0.05f0)
 
             target_action = actor.actor_target(s_next_input_batch) .+ epsilon
-            target_action = vcat(target_action, zeros(Float32, env.num_polys - env.num_vars, N_SAMPLES))
+            target_action =
+                vcat(target_action, zeros(Float32, env.num_polys - env.num_vars, N_SAMPLES))
             target_action = Float32.(target_action)
 
             critic_1_target_val =
@@ -355,7 +399,10 @@ function train_td3!(
             if global_timestep % D == 0
                 actor_loss, back = Flux.withgradient(actor.actor) do model
                     a_pred = model(Float32.(s_input_batch))
-                    a_pred = vcat(a_pred, zeros(Float32, env.num_polys - env.num_vars, N_SAMPLES))
+                    a_pred = vcat(
+                        a_pred,
+                        zeros(Float32, env.num_polys - env.num_vars, N_SAMPLES),
+                    )
                     q_val = critic.critic_1(Float32.(vcat(s_input_batch, a_pred)))
                     -mean(q_val)
                 end
@@ -383,7 +430,7 @@ function train_td3!(
         end
 
         if i % SAVE_WEIGHTS == 0
-            @BSON.save(CHECKPOINT_PATH, actor, critic)
+            BSON.@save(CHECKPOINT_PATH, actor, critic)
             println("Saved TD3 checkpoint to $CHECKPOINT_PATH at episode $i")
         end
 
@@ -404,13 +451,14 @@ function train_td3!(
         xlabel = "Actor Update Step (every $D timesteps)",
         ylabel = "Loss",
         label = "Actor Loss",
-        color = :red,       
-        markersize = 1,     
+        color = :red,
+        markersize = 1,
         markerstrokewidth = 0, # Removes the border around the dots
         legend = :topleft,
     )
 
-    savefig(loss_plot, "actor_plot_newbase.pdf")
+    # savefig(loss_plot, "actor_plot_newbase.pdf")
+    savefig(loss_plot, ACTOR_PLOT_PATH)
 
     episodes2 = 1:length(rewards)
     reward_plot = scatter(
@@ -426,7 +474,8 @@ function train_td3!(
         legend = :bottomright,
     )
 
-    savefig(reward_plot, "reward_plot_newbase.pdf")
+    # savefig(reward_plot, "reward_plot_newbase.pdf")
+    savefig(reward_plot, REWARD_PLOT_PATH)
 
     episodes_critic1 = 1:length(losses_1)
     episodes_critic2 = 1:length(losses_2)
@@ -438,14 +487,15 @@ function train_td3!(
         legend = :topright,
         markersize = 1,
         markerstrokewidth = 0,
-        color = [:purple :blue], 
+        color = [:purple :blue],
         xlabel = "Time step",
         ylabel = "Loss",
         label = ["Critic 1 Loss" "Critic 2 Loss"],
         title = ["Critic 1" "Critic 2"],
     )
 
-    savefig(critic_plot, "critics_plot_newbase.pdf")
+    # savefig(critic_plot, "critics_plot_newbase.pdf")
+    savefig(critic_plot, CRITICS_PLOT_PATH)
 
 
     # n_cols_plot = scatter(1:length(n_cols_list), n_cols_list,
@@ -467,7 +517,7 @@ function train_td3!(
     #     markersize = 1,
     #     markerstrokewidth = 0,
     #     color = :cyan)
-    
+
     # savefig(n_deg_plot, "pair_degrees_plot.pdf")
 
     # n_cts_plot = scatter(1:length(pair_counts), pair_counts,
@@ -483,17 +533,13 @@ function train_td3!(
 
 end
 
-function test_td3!(
-    actor::Actor,
-    critic::Critics,
-    env::Environment,
-)
+function test_td3!(actor::Actor, critic::Critics, env::Environment)
 
     rewards = []
     actions_taken = []
 
     # base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
-    base_sets = BASE_SET_2
+    base_sets = N_SITE_PHOSPHORYLATION_BASE_SET
 
     ideals, vars, monomial_matrix = new_generate_data(
         num_ideals = NUM_TEST_IDEALS,
@@ -510,13 +556,13 @@ function test_td3!(
     env.variables = vars
     env.monomial_matrix = monomial_matrix
     println("Monomial_matrix: ", env.monomial_matrix)
-    
+
     test_batch = rand(ideals, TEST_BATCH_SIZE)
     test_batch_orders = []
     for (idx, ideal) in enumerate(test_batch)
         println("running inference on ideal: $idx")
 
-        reward_map = Dict{NTuple{NUM_VARS, Float32},Float32}()
+        reward_map = Dict{NTuple{NUM_VARS,Float32},Float32}()
 
         reset_env!(env)
         env.ideal_batch = [ideal]
@@ -528,23 +574,24 @@ function test_td3!(
             matrix = normalize_columns(raw_matrix)
 
             s_input = hcat(matrix, s)
-            s_input = reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_polys, 1))
-            
+            s_input =
+                reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_polys, 1))
+
             action = vec(actor.actor_target(s_input))
             basis = act!(env, action, false)
 
             s_next = Float32.(state(env))
             r = Float32(env.reward)
-            
+
             reward_map[tuple(s_next...)] = r
             done = is_terminated(env)
         end
 
-        push!(test_batch_orders, argmax(reward_map)) 
+        push!(test_batch_orders, argmax(reward_map))
 
     end
-    
-    reward_map = Dict{NTuple{NUM_VARS, Float32},Float32}()
+
+    reward_map = Dict{NTuple{NUM_VARS,Float32},Float32}()
     for order in test_batch_orders
         println("evaluating order: $order")
         reset_env!(env)
@@ -566,7 +613,7 @@ function test_td3!(
 
     for (idx, ideal) in enumerate(ideals)
 
-        if idx % 100 == 0 
+        if idx % 100 == 0
             println("testing on ideal: $idx")
         end
 
@@ -575,7 +622,7 @@ function test_td3!(
         basis = act!(env, best_order, false)
         s_next = Float32.(state(env))
         r = Float32(env.reward)
-        
+
         push!(agent_rewards, r)
 
         # lex_trace, lex_basis = groebner_learn(ideal, ordering = Lex())
@@ -589,11 +636,11 @@ function test_td3!(
 
     end
 
-    serialize(RESULTS_PATH * "agent_order.bin", best_order)
-    serialize(RESULTS_PATH * "agent_rewards.bin", agent_rewards)
-    # serialize(RESULTS_PATH * "lex_rewards.bin", lex_rewards)
-    serialize(RESULTS_PATH * "deglex_rewards.bin", deglex_rewards)
-    serialize(RESULTS_PATH * "grevlex_rewards.bin", grevlex_rewards)
+    serialize(joinpath(RESULTS_DIR, "agent_order.bin"), best_order)
+    serialize(joinpath(RESULTS_DIR, "agent_rewards.bin"), agent_rewards)
+    serialize(joinpath(RESULTS_DIR, "deglex_rewards.bin"), deglex_rewards)
+    serialize(joinpath(RESULTS_DIR, "grevlex_rewards.bin"), grevlex_rewards)
+
 
     rewards = agent_rewards
 
@@ -614,7 +661,8 @@ function test_td3!(
     savefig(reward_plot, "reward_plot_longertraining.pdf")
 
     reward_comparison = plot(
-        episodes2, rewards,
+        episodes2,
+        rewards,
         label = "Agent",
         color = :green,
         linewidth = 1,
@@ -632,7 +680,8 @@ function test_td3!(
     # )
 
     plot!(
-        episodes2, deglex_rewards,
+        episodes2,
+        deglex_rewards,
         label = "Grlex",
         color = :blue,
         linewidth = 1,
@@ -641,7 +690,8 @@ function test_td3!(
     )
 
     plot!(
-        episodes2, grevlex_rewards,
+        episodes2,
+        grevlex_rewards,
         label = "Grevlex",
         color = :red,
         linewidth = 1,
@@ -651,7 +701,8 @@ function test_td3!(
         ylabel = "Reward",
         legend = :bottomright,
     )
-    savefig("reward_comparison.pdf")
+    # savefig("reward_comparison.pdf")
+    savefig(REWARD_CMP_PATH)
 
 
 end
@@ -663,7 +714,7 @@ function soft_update!(target, policy)
 end
 
 function normalize_columns(M::AbstractMatrix)
-    mapslices(x -> x / (norm(x) + 1e-8), M; dims=1)
+    mapslices(x -> x / (norm(x) + 1e-8), M; dims = 1)
 end
 
 function load_td3(env::Environment)
@@ -671,13 +722,15 @@ function load_td3(env::Environment)
         println("Checkpoint found. Loading saved model")
         actor = nothing
         critic = nothing
-        replay_buffer = PrioritizedReplayBuffer(CAPACITY, N_SAMPLES, ALPHA, BETA, BETA_INCREMENT, EPS)
-        @BSON.load(CHECKPOINT_PATH, actor, critic)
+        replay_buffer =
+            PrioritizedReplayBuffer(CAPACITY, N_SAMPLES, ALPHA, BETA, BETA_INCREMENT, EPS)
+        BSON.@load(CHECKPOINT_PATH, actor, critic)
         return actor, critic, replay_buffer
     else
         println("No checkpoint found. Training models from scratch")
         actor, critic = build_td3_model(env)
-        replay_buffer = PrioritizedReplayBuffer(CAPACITY, N_SAMPLES, ALPHA, BETA, BETA_INCREMENT, EPS)
+        replay_buffer =
+            PrioritizedReplayBuffer(CAPACITY, N_SAMPLES, ALPHA, BETA, BETA_INCREMENT, EPS)
         return actor, critic, replay_buffer
     end
 end

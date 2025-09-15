@@ -109,6 +109,7 @@ function act!(env::Environment, raw_action::Vector{Float32}, use_baseline::Bool)
     env.state = action
 
     action = Int.(round.(ACTION_SCALE * action))
+    action = max.(action, 1)
     # println("weighting for groebner: ", action)
 
     weights = zip(env.variables, action)

@@ -8,7 +8,10 @@ function compute_stats(agent_rewards, baseline_rewards, name)
     wins = [a > b for (a, b) in zip(agent_rewards, baseline_rewards)]
     win_pct = 100 * count(wins) / total
 
-    improvements = [(a - b) / abs(b + 1e-8) * 100 for (a, b) in zip(agent_rewards, baseline_rewards) if a > b]
+    improvements = [
+        (a - b) / abs(b + 1e-8) * 100 for
+        (a, b) in zip(agent_rewards, baseline_rewards) if a > b
+    ]
     avg_improvement = isempty(improvements) ? 0.0 : mean(improvements)
 
     println("Agent vs $name:")
@@ -18,12 +21,18 @@ function compute_stats(agent_rewards, baseline_rewards, name)
 end
 
 function interpret_results()
-    best_order = deserialize(RESULTS_PATH * "agent_order.bin")
-    agent_rewards = deserialize(RESULTS_PATH * "agent_rewards.bin")
-    deglex_rewards = deserialize(RESULTS_PATH * "deglex_rewards.bin")
-    grevlex_rewards = deserialize(RESULTS_PATH * "grevlex_rewards.bin")
+    if !@isdefined(RESULTS_DIR)
+        BASE_DIR = @__DIR__
+        RESULTS_DIR = joinpath(BASE_DIR, "results")
+    end
+
+    best_order = deserialize(joinpath(RESULTS_DIR, "agent_order.bin"))
+    agent_rewards = deserialize(joinpath(RESULTS_DIR, "agent_rewards.bin"))
+    deglex_rewards = deserialize(joinpath(RESULTS_DIR, "deglex_rewards.bin"))
+    grevlex_rewards = deserialize(joinpath(RESULTS_DIR, "grevlex_rewards.bin"))
 
     println("Agent order: $best_order")
+
     int_best_order = Int.(round.(ACTION_SCALE * best_order))
     println("Agent order (int): $int_best_order")
 
@@ -34,4 +43,3 @@ function interpret_results()
     compute_stats(agent_rewards, deglex_rewards, "DegLex")
     compute_stats(agent_rewards, grevlex_rewards, "DegRevLex")
 end
-

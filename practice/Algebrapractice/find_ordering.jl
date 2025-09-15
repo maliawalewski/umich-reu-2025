@@ -419,6 +419,47 @@ BASE_SET = Vector{Any}([
 ])
 
 
+BASE_SET = Vector{Any}([
+    [ 
+        [1, 0], 
+        [0, 1], 
+        [0, 0],
+        [1, 1], 
+        [1, 2],  
+        [1, 3],  
+        [1, 4],   
+        [1, 5],  
+        [1, 6], 
+        [1, 7],
+        [1, 8],  
+        [1, 9],  
+        [1,10], 
+        [1,11], 
+        [1,12],  
+        [1,13],
+        [1,14]    
+    ],
+    [ 
+        [1, 0],
+        [0, 1],
+        [0, 0],
+        [1, 1],
+        [1, 2],
+        [1, 3],
+        [1, 4],
+        [1, 5],
+        [1, 6],
+        [1, 7],
+        [1, 8],
+        [1, 9],
+        [1,10],
+        [1,11],
+        [1,12],
+        [1,13],
+        [1,14]
+    ]
+])
+
 function new_generate_ideal(;
     num_variables::Integer = 3,
     num_polynomials::Integer = 3,
@@ -560,17 +601,33 @@ base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
 
 println(base_sets)
 
+#=
 ideals, vars, monomial_matrix = new_generate_data(
     num_ideals = 1,
-    num_polynomials = 3,
-    num_variables = 3,
-    max_degree = 2,
-    num_terms = 5,
+    num_polynomials = 2,
+    num_variables = 2,
+    max_degree = 15,
+    num_terms = 17,
     max_attempts = 100,
     base_sets = base_sets,
     base_set_path = BASE_SET_PATH,
     should_save_base_sets = base_sets === nothing,
 )
+
+=#
+
+ideals, vars, monomial_matrix = new_generate_data(
+    num_ideals = 1,
+    num_polynomials = 2,   # matches length(BASE_SET)
+    num_variables = 2,
+    max_degree = 15,
+    num_terms = 17,        # matches length(BASE_SET[1])
+    max_attempts = 100,
+    base_sets = BASE_SET,  # already hardcoded above
+    base_set_path = BASE_SET_PATH,
+    should_save_base_sets = base_sets === nothing,
+)
+
 
 
 reward_map = Dict{NTuple{3,Int},Float64}()
@@ -581,10 +638,11 @@ println("grevlex: $(reward(baseline_trace))")
 baseline_trace, _ = groebner_learn(ideals[1], ordering = DegLex())
 println("grlex: $(reward(baseline_trace))")
 
-dot_products = [(mon, mon[1]*29 + mon[2]*43 + mon[3]*27) for mon in BASE_SET[1]]
-sorted = sort(dot_products, by = x -> -x[2])
+# dot_products = [(mon, mon[1]*29 + mon[2]*43 + mon[3]*27) for mon in BASE_SET[1]]
+# sorted = sort(dot_products, by = x -> -x[2])
 # println(sorted)
 
+#=
 for i = 53:53
     for j = 37:37
         for k = 69:69
@@ -595,6 +653,21 @@ for i = 53:53
         end
     end
 end
+
+=#
+
+reward_map = Dict{NTuple{2,Int},Float64}()
+
+for i = 1:100
+    for j = 1:100
+        order = (i, j)
+        r = act([i, j], vars, ideals[1])
+        println("i: $i, j: $j, reward: $r")
+        reward_map[order] = r
+    end
+end
+
+
 
 # (53, 37, 69)
 
@@ -610,6 +683,8 @@ println("Worst reward: $worst_reward at order = $worst_order")
 base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
 
 M = 100_000
+
+#=
 ideals_test, _, _ = new_generate_data(
     num_ideals = M,
     num_polynomials = 3,
@@ -620,6 +695,20 @@ ideals_test, _, _ = new_generate_data(
     base_set_path = BASE_SET_PATH,
     should_save_base_sets = base_sets === nothing,
 )
+=#
+
+ideals_test, _, _ = new_generate_data(
+    num_ideals = M,
+    num_polynomials = 2,   # matches length(BASE_SET)
+    num_variables = 2,
+    max_degree = 15,
+    num_terms = 17,        # matches length(BASE_SET[1])
+    max_attempts = 100,
+    base_sets = BASE_SET,  # already hardcoded above
+    base_set_path = BASE_SET_PATH,
+    should_save_base_sets = base_sets === nothing,
+)
+
 
 wvec = collect(best_order)
 
