@@ -413,12 +413,11 @@ RELATIVE_POSE_BASE_SET = Vector{Any}([
     ],
 ])
 
-# n-site phosphorylation system paper
+# n-site phosphorylation system paper (n = 14 so we have 17 monomials)
 N_SITE_PHOSPHORYLATION_BASE_SET = Vector{Any}([
     [
         [1, 0],
         [0, 1],
-        [0, 0],
         [1, 1],
         [1, 2],
         [1, 3],
@@ -433,11 +432,11 @@ N_SITE_PHOSPHORYLATION_BASE_SET = Vector{Any}([
         [1, 12],
         [1, 13],
         [1, 14],
+        [0, 0],
     ],
     [
         [1, 0],
         [0, 1],
-        [0, 0],
         [1, 1],
         [1, 2],
         [1, 3],
@@ -452,5 +451,6 @@ N_SITE_PHOSPHORYLATION_BASE_SET = Vector{Any}([
         [1, 12],
         [1, 13],
         [1, 14],
+        [0, 0],
     ],
 ])

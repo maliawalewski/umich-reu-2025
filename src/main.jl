@@ -24,9 +24,9 @@ function main()
 
     actor_struct, critic_struct, replay_buffer = load_td3(env)
   
-    # train_td3!(actor_struct, critic_struct, env, replay_buffer, ACTOR_LR, CRITIC_LR)
+    train_td3!(actor_struct, critic_struct, env, replay_buffer, ACTOR_LR, CRITIC_LR)
     
-    # test_td3!(actor_struct, critic_struct, env)
+    test_td3!(actor_struct, critic_struct, env)
 
     interpret_results()
 

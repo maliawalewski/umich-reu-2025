@@ -244,6 +244,7 @@ function train_td3!(
         base_sets = base_sets,
         base_set_path = BASE_SET_PATH,
         should_save_base_sets = base_sets === nothing,
+        use_n_site_phosphorylation_coeffs = true,
     )
 
     env.variables = vars

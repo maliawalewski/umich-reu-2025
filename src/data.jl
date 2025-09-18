@@ -90,6 +90,99 @@ function old_generate_data(;
     return ideals, variables
 end
 
+function n_site_phosphorylation_generate_ideal(;
+    num_variables::Integer = 2,
+    num_polynomials::Integer = 2,
+    num_terms::Integer,
+    base_sets::Vector{Any},
+    max_attempts::Integer = 100,
+)
+    @assert num_variables == 2 "n-site Eq.(2.6) generator requires num_variables == 2"
+    @assert num_polynomials == 2 "n-site Eq.(2.6) generator requires num_polynomials == 2"
+    @assert length(base_sets) == num_polynomials "number of base_sets does not match the number of polynomials"
+    @assert length(base_sets[1]) == num_terms "number of exponents in base_set does not match the number of terms"
+    @assert base_sets[1] == base_sets[2] "Both polynomials must share the same support set (same ordering)"
+    A = base_sets[1]
+
+    @assert !isempty(A) "empty base set"
+    @assert all(length(e) == 2 for e in A) "exponents must be of the form [e1, e2]"
+    @assert A[1] == [1, 0] "Expected first exponent [1,0]"
+    @assert A[2] == [0, 1] "Expected second exponent [0,1]"
+    @assert A[end] == [0, 0] "Expected last exponent [0,0]"
+    middles = A[3:(end-1)]
+    @assert all(e[1] == 1 && e[2] ≥ 1 for e in middles) "Middle exponents must be (1,j) with j≥1"
+    js = sort!(unique(e[2] for e in middles))
+    @assert js == collect(1:length(middles)) "Middle exponents must be consecutive (1..n)"
+    n = length(middles)
+
+    F = GF(32003)
+    ring, vars = polynomial_ring(F, ["x_1", "x_2"])
+    x1, x2 = vars
+
+    rand_nonzero() = begin
+        c = rand(F)
+        tries = 1
+        while c == 0
+            tries += 1
+            @assert tries <= max_attempts "failed to generate a non-zero element after $max_attempts attempts"
+            c = rand(F)
+        end
+        c
+    end
+
+    Stot = rand_nonzero()
+    Etot = rand_nonzero()
+    Ftot = rand_nonzero()
+
+    # T_j (j = 0..n-1), K_j (j = 0..n-1)
+    T = [rand_nonzero() for _ = 1:n]
+    K = [rand_nonzero() for _ = 1:n]
+
+    # beta_j = K_j * T_{j-1} / (Ftot^j) with T_{-1} := 1
+    beta = Vector{typeof(F(0))}(undef, n)
+    for j = 0:(n-1)
+        Tprev in (j == 0) ? F(1) : T[j]
+        beta[j+1] = K[j+1] * Tprev / (Ftot ^ j)
+    end
+
+    # Row 1
+    row1 = Vector{typeof(F(0))}(undef, n + 3)
+    row1[1] = F(1)
+    row1[2] = F(0)
+    for k = 1:n
+        j = k - 1
+        row1[2+k] = T[k] / (Ftot ^ (j + 1)) + beta[k]
+    end
+    row1[end] = -Stot
+
+    # Row 2
+    row2 = Vector{typeof(F(0))}(undef, n + 3)
+    row2[1] = F(0)
+    row2[2] = F(1)
+    for k = 1:n
+        row2[2+k] = beta[k]
+    end
+    row2[end] = -Etot
+
+    monoms = Any[]
+    for e in A
+        push!(monoms, (x1 ^ e[1]) * (x2 ^ e[2]))
+    end
+
+    f1 = zero(x1)
+    f2 = zero(x1)
+    for i in eachindex(monoms)
+        f1 += row1[i] * monoms[i]
+        f2 += row2[i] * monoms[i]
+    end
+
+    polynomials = Vector{typeof(vars[1])}()
+    push!(polynomials, f1)
+    push!(polynomials, f2)
+
+    return polynomials, vars
+end
+
 function new_generate_ideal(;
     num_variables::Integer = 3,
     num_polynomials::Integer = 3,
@@ -136,6 +229,7 @@ function new_generate_data(;
     base_sets::Union{Nothing,Vector{Any}} = nothing,
     base_set_path::Union{Nothing,String} = nothing,
     should_save_base_sets::Bool = false,
+    use_n_site_phosphorylation_coeffs = false,
 )
 
     @assert num_ideals > 0 "num_ideals must be greater than 0"
@@ -169,15 +263,29 @@ function new_generate_data(;
     ideals = []
     variables = nothing
     for _ = 1:num_ideals
-        ideal, vars = new_generate_ideal(
-            num_variables = num_variables,
-            num_polynomials = num_polynomials,
-            num_terms = num_terms,
-            base_sets = base_sets,
-            max_attempts = max_attempts,
-        )
-        variables = vars
-        push!(ideals, ideal)
+        if use_n_site_phosphorylation_coeffs
+            ideal, vars = n_site_phosphorylation_generate_ideal(
+                num_variables = num_variables,
+                num_polynomials = num_polynomials,
+                num_terms = num_terms,
+                base_sets = base_sets,
+                max_attempts = max_attempts,
+            )
+            variables = vars
+            push!(ideals, ideal)
+        else
+            ideal, vars = new_generate_ideal(
+                num_variables = num_variables,
+                num_polynomials = num_polynomials,
+                num_terms = num_terms,
+                base_sets = base_sets,
+                max_attempts = max_attempts,
+            )
+            variables = vars
+            push!(ideals, ideal)
+        end
+
+
     end
 
     return ideals, variables, base_sets
@@ -190,4 +298,3 @@ end
 function load_base_sets(path::String)
     return deserialize(path)
 end
-
