@@ -141,7 +141,7 @@ function n_site_phosphorylation_generate_ideal(;
     # beta_j = K_j * T_{j-1} / (Ftot^j) with T_{-1} := 1
     beta = Vector{typeof(F(0))}(undef, n)
     for j = 0:(n-1)
-        Tprev in (j == 0) ? F(1) : T[j]
+        Tprev = (j == 0) ? F(1) : T[j]
         beta[j+1] = K[j+1] * Tprev / (Ftot ^ j)
     end
 
