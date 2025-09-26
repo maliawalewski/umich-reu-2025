@@ -244,7 +244,7 @@ function train_td3!(
         base_sets = base_sets,
         base_set_path = BASE_SET_PATH,
         should_save_base_sets = base_sets === nothing,
-        use_n_site_phosphorylation_coeffs = true,
+        use_n_site_phosphorylation_coeffs = base_sets === N_SITE_PHOSPHORYLATION_BASE_SET,
     )
 
     env.variables = vars
@@ -552,6 +552,7 @@ function test_td3!(actor::Actor, critic::Critics, env::Environment)
         base_sets = base_sets,
         base_set_path = BASE_SET_PATH,
         should_save_base_sets = base_sets === nothing,
+        use_n_site_phosphorylation_coeffs = base_sets === N_SITE_PHOSPHORYLATION_BASE_SET,
     )
 
     env.variables = vars
@@ -571,13 +572,16 @@ function test_td3!(actor::Actor, critic::Critics, env::Environment)
         done = false
 
         while !done
-            raw_matrix = hcat([reduce(hcat, group) for group in env.monomial_matrix]...)
+            raw_matrix =
+                vcat([collect(Iterators.flatten(row))' for row in env.monomial_matrix]...)
             matrix = normalize_columns(raw_matrix)
 
-            s_input = hcat(matrix, s)
+            padded_s = vcat(s, zeros(Float32, env.num_polys - env.num_vars))
+            s_input = hcat(matrix, padded_s)
             s_input =
                 reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_polys, 1))
-
+            s_input = Float32.(s_input)
+            
             action = vec(actor.actor_target(s_input))
             basis = act!(env, action, false)
 
