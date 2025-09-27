@@ -1,6 +1,7 @@
 using Groebner
 using AbstractAlgebra
 include("data.jl")
+include("basesets.jl")
 
 # Scaling parameters
 ACTION_SCALE = 1e3 # Scales action to integers 
@@ -26,30 +27,59 @@ mutable struct Environment
     monomial_matrix::Array{Vector{Any}}
 end
 
+
 function init_environment(;
-    num_vars::Int = 1,
-    delta_bound::Float32 = 0.01f0,
-    reward::Float32 = 0.0f0,
-    ideal_batch::Vector{
-        Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}},
-    } = Vector{Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}}(),
-    vars::Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}} = Vector{
-        AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}},
-    }(),
-    is_terminated::Bool = false,
+    args::Dict{String, Any} = nothing,
     num_ideals::Int = 10,
-    iteration_count::Int = 0,
+    delta_bound::Float32 = 0.01f0,
     max_iterations::Int = 5,
-    num_terms::Int = num_vars + 3,
-    num_polys::Int = num_vars,
+    default_num_vars = 3, 
+    default_num_terms = 5, 
+    default_num_polys = 3,
+)
+    @assert delta_bound >= 0.0f0 "Delta noise must be non-negative."
+
+    if args["baseset"] == "N_SITE_PHOSPHORYLATION_BASE_SET"
+        base_sets = N_SITE_PHOSPHORYLATION_BASE_SET
+    elseif args["baseset"] == "RELATIVE_POSE_BASE_SET"
+        base_sets = RELATIVE_POSE_BASE_SET
+    elseif args["baseset"] == "TRIANGULATION_BASE_SET"
+        base_sets = TRIANGULATION_BASE_SET
+    elseif args["baseset"] == "WNT_BASE_SET"
+        base_sets = WNT_BASE_SET
+    else
+        base_sets = nothing
+    end
+
+    if args["baseset"] == "DEFAULT"
+        println("Using default params: num_vars = $default_num_vars, num_terms = $default_num_terms, num_polys = $default_num_polys")
+        num_vars, num_terms, num_polys = default_num_vars, default_num_terms, default_num_polys
+    else 
+        num_polys = length(base_sets)
+        @assert num_polys > 0 "Empty base_sets"
+        num_terms = length(base_sets[1])
+        @assert all(length(p) == num_terms for p in base_sets) "polynomials have differing term counts"
+        num_vars = length(base_sets[1][1])
+        @assert all(length(t) == num_vars for p in base_sets for t in p) "terms do not all have the same number of variables"
+    end
+
     monomial_matrix::Array{Vector{Any}} = Array{Vector{Any}}(
         undef,
         num_polys,
         num_vars * num_terms,
-    ),
-)
-    @assert num_vars > 0 "Number of variables must be greater than 0."
-    @assert delta_bound >= 0.0f0 "Delta noise must be non-negative."
+    )   
+
+    ideal_batch::Vector{
+        Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}},
+    } = Vector{Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}}}()
+    
+    vars::Vector{AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}}} = Vector{
+        AbstractAlgebra.Generic.MPoly{AbstractAlgebra.GFElem{Int64}},
+    }()
+    
+    iteration_count = 0
+    is_terminated = false
+    reward = 0.0f0
 
     state_i = init_state(num_vars, num_polys)
     return Environment(

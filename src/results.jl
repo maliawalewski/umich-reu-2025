@@ -34,6 +34,7 @@ function interpret_results()
     println("Agent order: $best_order")
 
     int_best_order = Int.(round.(ACTION_SCALE * best_order))
+    int_best_order = max.(int_best_order, 1)
     println("Agent order (int): $int_best_order")
 
     agent_rewards = Float64.(agent_rewards)

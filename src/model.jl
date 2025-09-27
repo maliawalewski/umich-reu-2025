@@ -32,24 +32,15 @@ end
 
 
 # Environment parameters
+# if a baseset is not passed to environment we have to fall back to generating random polynomials
+DEFAULT_NUM_VARS = 3 
+DEFAULT_NUM_TERMS = 5 
+DEFAULT_NUM_POLYS = 3 
+DEFAULT_MAX_DEGREE = 4
 
-#=
-# relative pose paper parameters
-NUM_VARS = 3
 DELTA_BOUND = 0.1f0 # Max shift from current state
-NUM_POLYS = 10 # For now, number of polynomials is equal to number of variables
 NUM_IDEALS = 10 # Number of ideals per episode
-NUM_TERMS = 33 # Number of terms in each polynomial
 MAX_ITERATIONS = 25 # Maximum iterations per episode (i.e. steps per episode)
-=#
-
-# n-Site Phosphorylation parameters 
-NUM_VARS = 2
-DELTA_BOUND = 0.1f0
-NUM_POLYS = 2
-NUM_IDEALS = 10
-NUM_TERMS = 17
-MAX_ITERATIONS = 25
 
 # TD3 parameters
 EPISODES = 1_000
@@ -74,15 +65,6 @@ BETA_INCREMENT = 0.0001f0
 EPS = 0.01f0
 
 # Data parameters (used to generate ideal batch)
-
-#=
-# relative pose paper parameters
-MAX_DEGREE = 4
-MAX_ATTEMPTS = 100
-=#
-
-# n-Site Phosphorylation parameters 
-MAX_DEGREE = 15
 MAX_ATTEMPTS = 100
 
 # test model
@@ -133,32 +115,32 @@ function init_critics(
     )
 end
 
-function build_td3_model(env::Environment)
+function build_td3_model(env::Environment, args::Dict{String, Any})
 
-    # Original dense layer actor
-    actor = Flux.Chain(
-        Dense(
-            ((env.num_vars * env.num_terms) + 1) * env.num_polys,
-            ACTOR_HIDDEN_WIDTH,
-            relu,
-        ),
-        Dense(ACTOR_HIDDEN_WIDTH, ACTOR_HIDDEN_WIDTH, relu),
-        Dense(ACTOR_HIDDEN_WIDTH, ACTOR_HIDDEN_WIDTH, relu),
-        Dense(ACTOR_HIDDEN_WIDTH, env.num_vars),
-        softmax,
-    )
+    if args["lstm"]
+        # LSTM layer actor
+        actor_layers = Any[LSTM(((env.num_vars * env.num_terms) + 1) * env.num_polys => ACTOR_HIDDEN_WIDTH)]
+        for l in 1:(ACTOR_DEPTH - 1)
+            layer = LSTM(ACTOR_HIDDEN_WIDTH => ACTOR_HIDDEN_WIDTH)
+            push!(actor_layers, layer)
+        end
+        push!(actor_layers, Dense(ACTOR_HIDDEN_WIDTH, env.num_vars, sigmoid))
+        actor = Flux.Chain(actor_layers...)
+    else 
+        # Original dense layer actor
+        actor = Flux.Chain(
+            Dense(
+                ((env.num_vars * env.num_terms) + 1) * env.num_polys,
+                ACTOR_HIDDEN_WIDTH,
+                relu,
+            ),
+            Dense(ACTOR_HIDDEN_WIDTH, ACTOR_HIDDEN_WIDTH, relu),
+            Dense(ACTOR_HIDDEN_WIDTH, ACTOR_HIDDEN_WIDTH, relu),
+            Dense(ACTOR_HIDDEN_WIDTH, env.num_vars),
+            softmax,
+        )
+    end
 
-    # LSTM layer actor
-    # actor_layers = Any[LSTM(((env.num_vars * env.num_terms) + 1) * env.num_vars => ACTOR_HIDDEN_WIDTH)]
-    # for l in 1:(ACTOR_DEPTH - 1)
-    #     layer = LSTM(ACTOR_HIDDEN_WIDTH => ACTOR_HIDDEN_WIDTH)
-    #     push!(actor_layers, layer)
-    # end
-    # push!(actor_layers, Dense(ACTOR_HIDDEN_WIDTH, env.num_vars, sigmoid))
-    # actor = Flux.Chain(actor_layers...)
-    # actor = Flux.Chain(LSTM(((env.num_vars * env.num_terms) + 1) * env.num_vars => ACTOR_HIDDEN_WIDTH), LSTM(ACTOR_HIDDEN_WIDTH => ACTOR_HIDDEN_WIDTH), Dense(ACTOR_HIDDEN_WIDTH, env.num_vars, sigmoid))
-
-    # Original dense layer critics
     critic_1 = Flux.Chain(
         Dense(
             ((env.num_vars * env.num_terms) + 2) * env.num_polys,
@@ -179,10 +161,6 @@ function build_td3_model(env::Environment)
         Dense(CRITIC_HIDDEN_WIDTH, CRITIC_HIDDEN_WIDTH, relu),
         Dense(CRITIC_HIDDEN_WIDTH, 1),
     )
-
-    # LSTM layer critics
-    # critic_1 = Flux.Chain(LSTM(((env.num_vars * env.num_terms) + 2) * env.num_vars => CRITIC_HIDDEN_WIDTH), LSTM(CRITIC_HIDDEN_WIDTH => CRITIC_HIDDEN_WIDTH), Dense(CRITIC_HIDDEN_WIDTH, 1))
-    # critic_2 = Flux.Chain(LSTM(((env.num_vars * env.num_terms) + 2) * env.num_vars => CRITIC_HIDDEN_WIDTH), LSTM(CRITIC_HIDDEN_WIDTH => CRITIC_HIDDEN_WIDTH), Dense(CRITIC_HIDDEN_WIDTH, 1))
 
     actor_target = deepcopy(actor)
     critic_1_target = deepcopy(critic_1)
@@ -217,9 +195,10 @@ function train_td3!(
     actor::Actor,
     critic::Critics,
     env::Environment,
-    replay_buffer::PrioritizedReplayBuffer,
+    replay_buffer::Union{PrioritizedReplayBuffer, CircularBuffer{Transition}},
     initial_actor_lr::Float64,
     initial_critic_lr::Float64,
+    args::Dict{String, Any},
 )
 
     losses = []
@@ -232,13 +211,32 @@ function train_td3!(
     current_critic_lr = initial_critic_lr
 
     # base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
-    base_sets = N_SITE_PHOSPHORYLATION_BASE_SET
+    
+    if args["baseset"] == "N_SITE_PHOSPHORYLATION_BASE_SET"
+        base_sets = N_SITE_PHOSPHORYLATION_BASE_SET
+    elseif args["baseset"] == "RELATIVE_POSE_BASE_SET"
+        base_sets = RELATIVE_POSE_BASE_SET
+    elseif args["baseset"] == "TRIANGULATION_BASE_SET"
+        base_sets = TRIANGULATION_BASE_SET
+    elseif args["baseset"] == "WNT_BASE_SET"
+        base_sets = WNT_BASE_SET
+    elseif args["baseset"] == "DEFAULT"
+        base_sets = nothing
+        max_degree = DEFAULT_MAX_DEGREE
+    else 
+        error("Unknown baseset: $(args["baseset"])")
+    end
+
+    if args["baseset"] != "DEFAULT"
+        flat_terms = vcat(base_sets...)
+        max_degree = maximum(sum(term) for term in flat_terms)
+    end
 
     ideals, vars, monomial_matrix = new_generate_data(
         num_ideals = EPISODES * NUM_IDEALS,
         num_polynomials = env.num_polys,
         num_variables = env.num_vars,
-        max_degree = MAX_DEGREE,
+        max_degree = max_degree,
         num_terms = env.num_terms,
         max_attempts = MAX_ATTEMPTS,
         base_sets = base_sets,
@@ -255,6 +253,12 @@ function train_td3!(
 
     for i = 1:EPISODES
         reset_env!(env)
+        
+        if args["lstm"]
+            Flux.reset!(actor.actor)
+            Flux.reset!(actor.actor_target)
+        end
+
         # fill_ideal_batch(env, env.num_polys, MAX_DEGREE, MAX_ATTEMPTS) # fill with random ideals
 
         start_idx = (i - 1) * NUM_IDEALS + 1
@@ -313,19 +317,22 @@ function train_td3!(
             s_next_input = done ? nothing : s_next_input
 
             if !done
-                # push!(replay_buffer, Transition(s, action, r, s_next, s_input, s_next_input)) # All actions are raw outputs (no valid actions)
-                add_experience!(
-                    replay_buffer,
-                    Transition(
-                        padded_s,
-                        padded_s_next,
-                        r,
-                        padded_s_next,
-                        s_input,
-                        s_next_input,
-                    ),
-                    abs(r),
-                )
+                if args["per"]
+                    add_experience!(
+                        replay_buffer,
+                        Transition(
+                            padded_s,
+                            padded_s_next,
+                            r,
+                            padded_s_next,
+                            s_input,
+                            s_next_input,
+                        ),
+                        abs(r),)
+                else
+                    push!(replay_buffer, Transition(s, action, r, s_next, s_input, s_next_input)) 
+                end
+
             end
 
             s = s_next === nothing ? s : s_next
@@ -335,8 +342,11 @@ function train_td3!(
                 continue
             end
 
-            # batch = rand(replay_buffer, N_SAMPLES)
-            batch, indices, weights = sample(replay_buffer)
+            if args["per"]
+                batch, indices, weights = sample(replay_buffer)
+            else 
+                batch = rand(replay_buffer, N_SAMPLES)
+            end
 
             s_batch = hcat([b.s for b in batch]...)
             a_batch = hcat([b.a for b in batch]...)
@@ -357,6 +367,10 @@ function train_td3!(
             not_done = reshape(Float32.(getfield.(batch, :s_next_input) .!== nothing), 1, :)
 
             epsilon = clamp.(randn(1, N_SAMPLES) * STD, -0.05f0, 0.05f0)
+            
+            if args["lstm"]
+                Flux.reset!(actor.actor_target)
+            end
 
             target_action = actor.actor_target(s_next_input_batch) .+ epsilon
             target_action =
@@ -372,8 +386,11 @@ function train_td3!(
 
             y = r_batch .+ GAMMA .* not_done .* min_q
             pred = critic.critic_1(Float32.(vcat(s_input_batch, a_batch)))
-            errors = vec(Float32.(abs.(pred .- y)))
-            update_priorities!(replay_buffer, indices, errors)
+
+            if args["per"]
+                errors = vec(Float32.(abs.(pred .- y)))
+                update_priorities!(replay_buffer, indices, errors)
+            end
 
             loss1, back1 = Flux.withgradient(critic.critic_1) do model
                 pred = model(Float32.(vcat(s_input_batch, a_batch)))
@@ -398,6 +415,9 @@ function train_td3!(
 
             # Updating every D episodes 
             if global_timestep % D == 0
+                if args["lstm"]
+                    Flux.reset!(actor.actor)
+                end
                 actor_loss, back = Flux.withgradient(actor.actor) do model
                     a_pred = model(Float32.(s_input_batch))
                     a_pred = vcat(
@@ -534,19 +554,38 @@ function train_td3!(
 
 end
 
-function test_td3!(actor::Actor, critic::Critics, env::Environment)
+function test_td3!(actor::Actor, critic::Critics, env::Environment, args::Dict{String, Any})
 
     rewards = []
     actions_taken = []
 
     # base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
-    base_sets = N_SITE_PHOSPHORYLATION_BASE_SET
+    
+    if args["baseset"] == "N_SITE_PHOSPHORYLATION_BASE_SET"
+        base_sets = N_SITE_PHOSPHORYLATION_BASE_SET
+    elseif args["baseset"] == "RELATIVE_POSE_BASE_SET"
+        base_sets = RELATIVE_POSE_BASE_SET
+    elseif args["baseset"] == "TRIANGULATION_BASE_SET"
+        base_sets = TRIANGULATION_BASE_SET
+    elseif args["baseset"] == "WNT_BASE_SET"
+        base_sets = WNT_BASE_SET
+    elseif args["baseset"] == "DEFAULT"
+        base_sets = nothing
+        max_degree = DEFAULT_MAX_DEGREE
+    else 
+        error("Unknown baseset: $(args["baseset"])")
+    end
+
+    if args["baseset"] != "DEFAULT"
+        flat_terms = vcat(base_sets...)
+        max_degree = maximum(sum(term) for term in flat_terms)
+    end
 
     ideals, vars, monomial_matrix = new_generate_data(
         num_ideals = NUM_TEST_IDEALS,
         num_polynomials = env.num_polys,
         num_variables = env.num_vars,
-        max_degree = MAX_DEGREE,
+        max_degree = max_degree,
         num_terms = env.num_terms,
         max_attempts = MAX_ATTEMPTS,
         base_sets = base_sets,
@@ -564,13 +603,17 @@ function test_td3!(actor::Actor, critic::Critics, env::Environment)
     for (idx, ideal) in enumerate(test_batch)
         println("running inference on ideal: $idx")
 
-        reward_map = Dict{NTuple{NUM_VARS,Float32},Float32}()
+        reward_map = Dict{NTuple{(env.num_vars),Float32},Float32}()
 
         reset_env!(env)
         env.ideal_batch = [ideal]
         s = Float32.(state(env))
         done = false
-
+        
+        if args["lstm"]
+            Flux.reset!(actor.actor_target)
+        end
+        
         while !done
             raw_matrix =
                 vcat([collect(Iterators.flatten(row))' for row in env.monomial_matrix]...)
@@ -596,7 +639,7 @@ function test_td3!(actor::Actor, critic::Critics, env::Environment)
 
     end
 
-    reward_map = Dict{NTuple{NUM_VARS,Float32},Float32}()
+    reward_map = Dict{NTuple{(env.num_vars),Float32},Float32}()
     for order in test_batch_orders
         println("evaluating order: $order")
         reset_env!(env)
@@ -722,20 +765,26 @@ function normalize_columns(M::AbstractMatrix)
     mapslices(x -> x / (norm(x) + 1e-8), M; dims = 1)
 end
 
-function load_td3(env::Environment)
+function load_td3(env::Environment, args::Dict{String, Any})
     if isfile(CHECKPOINT_PATH)
         println("Checkpoint found. Loading saved model")
         actor = nothing
         critic = nothing
-        replay_buffer =
-            PrioritizedReplayBuffer(CAPACITY, N_SAMPLES, ALPHA, BETA, BETA_INCREMENT, EPS)
+        if args["per"]
+            replay_buffer = PrioritizedReplayBuffer(CAPACITY, N_SAMPLES, ALPHA, BETA, BETA_INCREMENT, EPS)
+        else 
+            replay_buffer = CircularBuffer{Transition}(CAPACITY)
+        end
         BSON.@load(CHECKPOINT_PATH, actor, critic)
         return actor, critic, replay_buffer
     else
         println("No checkpoint found. Training models from scratch")
-        actor, critic = build_td3_model(env)
-        replay_buffer =
-            PrioritizedReplayBuffer(CAPACITY, N_SAMPLES, ALPHA, BETA, BETA_INCREMENT, EPS)
+        actor, critic = build_td3_model(env, args)
+        if args["per"]
+            replay_buffer = PrioritizedReplayBuffer(CAPACITY, N_SAMPLES, ALPHA, BETA, BETA_INCREMENT, EPS)
+        else
+            replay_buffer = CircularBuffer{Transition}(CAPACITY)
+        end
         return actor, critic, replay_buffer
     end
 end
