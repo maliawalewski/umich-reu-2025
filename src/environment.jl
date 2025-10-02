@@ -47,6 +47,8 @@ function init_environment(;
         base_sets = TRIANGULATION_BASE_SET
     elseif args["baseset"] == "WNT_BASE_SET"
         base_sets = WNT_BASE_SET
+    elseif args["baseset"] == "FOUR_PT_BASE_SET"
+        base_sets = FOUR_PT_BASE_SET
     else
         base_sets = nothing
     end

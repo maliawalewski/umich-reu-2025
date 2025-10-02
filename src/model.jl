@@ -21,10 +21,10 @@ PLOTS_DIR = joinpath(BASE_DIR, "plots")
 BASE_SET_PATH = joinpath(DATA_DIR, "base_sets.bin")
 CHECKPOINT_PATH = joinpath(WEIGHTS_DIR, "td3_checkpoint.bson")
 
-ACTOR_PLOT_PATH = joinpath(PLOTS_DIR, "actor_plot_newbase.pdf")
-REWARD_PLOT_PATH = joinpath(PLOTS_DIR, "reward_plot_newbase.pdf")
-CRITICS_PLOT_PATH = joinpath(PLOTS_DIR, "critics_plot_newbase.pdf")
-REWARD_CMP_PATH = joinpath(PLOTS_DIR, "reward_comparison.pdf")
+ACTOR_PLOT_PATH = joinpath(PLOTS_DIR, "actor_plot.png")
+REWARD_PLOT_PATH = joinpath(PLOTS_DIR, "train_reward_plot.png")
+CRITICS_PLOT_PATH = joinpath(PLOTS_DIR, "critics_plot.png")
+REWARD_CMP_PATH = joinpath(PLOTS_DIR, "reward_comparison.png")
 
 for d in (DATA_DIR, WEIGHTS_DIR, RESULTS_DIR, PLOTS_DIR)
     isdir(d) || mkpath(d)
@@ -43,7 +43,7 @@ NUM_IDEALS = 10 # Number of ideals per episode
 MAX_ITERATIONS = 25 # Maximum iterations per episode (i.e. steps per episode)
 
 # TD3 parameters
-EPISODES = 1_000
+EPISODES = 10_000
 GAMMA = 0.99 # Discount factor
 TAU = 0.05 # Soft update parameter
 ACTOR_LR = 1e-4 # Learning rate for actor and critics
@@ -220,6 +220,8 @@ function train_td3!(
         base_sets = TRIANGULATION_BASE_SET
     elseif args["baseset"] == "WNT_BASE_SET"
         base_sets = WNT_BASE_SET
+    elseif args["baseset"] == "FOUR_PT_BASE_SET"
+        base_sets = FOUR_PT_BASE_SET
     elseif args["baseset"] == "DEFAULT"
         base_sets = nothing
         max_degree = DEFAULT_MAX_DEGREE
@@ -706,7 +708,7 @@ function test_td3!(actor::Actor, critic::Critics, env::Environment, args::Dict{S
         legend = :bottomleft,
     )
 
-    savefig(reward_plot, "reward_plot_longertraining.pdf")
+    savefig(reward_plot, "test_reward_plot.png")
 
     reward_comparison = plot(
         episodes2,

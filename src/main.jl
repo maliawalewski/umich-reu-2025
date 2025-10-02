@@ -12,7 +12,7 @@ function main()
         dest_name = "baseset"
         help = "Name of ideal baseset to use. It should be a variable from basesets.jl or DEFAULT"
         arg_type = String 
-        default = "N_SITE_PHOSPHORYLATION_BASE_SET"
+        default = "FOUR_PT_BASE_SET"
         "--LSTM", "--lstm", "--use_lstm", "--use_LSTM"
         dest_name = "lstm"
         help = "[true] => use an LSTM for the actor [false] => use a standard feed-forward neural network for the actor."
