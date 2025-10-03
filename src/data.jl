@@ -202,6 +202,9 @@ function new_generate_ideal(;
     for base_set in base_sets
         terms = []
         for e in base_set
+            if e[1] == -1
+                continue
+            end
             coeff = rand(field)
             c_attempts = 0
             while coeff == 0

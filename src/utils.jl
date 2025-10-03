@@ -104,3 +104,26 @@ function get_batch(buffer::PrioritizedReplayBuffer, sample_indices::Vector{Int64
     buffer.beta = min(1.0f0, buffer.beta + buffer.beta_increment)
     return samples, sample_indices, weights
 end
+
+
+function pad_base_set(base_sets::Vector{Any})
+    max_terms = NUM_TERMS
+    num_vars = NUM_VARS
+    
+    padding_monomial = fill(-1, num_vars) # -1 input for pad 
+    
+    padded_sets = []
+    for p in base_sets
+        current_terms = length(p)
+        num_to_pad = max_terms - current_terms
+        
+        # Create a new padded polynomial by appending the padding monomial
+        padded_poly = copy(p)
+        for _ in 1:num_to_pad
+            push!(padded_poly, padding_monomial)
+        end
+        push!(padded_sets, padded_poly)
+    end
+    
+    return padded_sets, max_terms
+end
