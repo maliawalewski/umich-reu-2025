@@ -34,7 +34,7 @@ end
 # Environment parameters
 # if a baseset is not passed to environment we have to fall back to generating random polynomials
 DEFAULT_NUM_VARS = 3 
-DEFAULT_NUM_TERMS = 5 
+DEFAULT_NUM_TERMS = 6 
 DEFAULT_NUM_POLYS = 3 
 DEFAULT_MAX_DEGREE = 4
 
@@ -210,7 +210,7 @@ function train_td3!(
     current_actor_lr = initial_actor_lr
     current_critic_lr = initial_critic_lr
 
-    # base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
+    base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
     
     if args["baseset"] == "N_SITE_PHOSPHORYLATION_BASE_SET"
         base_sets = N_SITE_PHOSPHORYLATION_BASE_SET
@@ -223,7 +223,6 @@ function train_td3!(
     elseif args["baseset"] == "FOUR_PT_BASE_SET"
         base_sets = FOUR_PT_BASE_SET
     elseif args["baseset"] == "DEFAULT"
-        base_sets = nothing
         max_degree = DEFAULT_MAX_DEGREE
     else 
         error("Unknown baseset: $(args["baseset"])")
@@ -561,7 +560,7 @@ function test_td3!(actor::Actor, critic::Critics, env::Environment, args::Dict{S
     rewards = []
     actions_taken = []
 
-    # base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
+    base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
     
     if args["baseset"] == "N_SITE_PHOSPHORYLATION_BASE_SET"
         base_sets = N_SITE_PHOSPHORYLATION_BASE_SET
@@ -572,7 +571,6 @@ function test_td3!(actor::Actor, critic::Critics, env::Environment, args::Dict{S
     elseif args["baseset"] == "WNT_BASE_SET"
         base_sets = WNT_BASE_SET
     elseif args["baseset"] == "DEFAULT"
-        base_sets = nothing
         max_degree = DEFAULT_MAX_DEGREE
     else 
         error("Unknown baseset: $(args["baseset"])")
