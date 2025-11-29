@@ -65,7 +65,7 @@ function build_sr_dataset(samples)
 end
 
 function simplex_aware_sr(X, Y)
-    println("\n=== Simplex-aware 2-target SR for each pair ===")
+    println("\nSimplex-aware 2-target SR for each pair")
 
     pairs = [(1, 2), (1, 3), (2, 3)]
     best_pair_mse = Inf
@@ -133,7 +133,7 @@ function simplex_aware_sr(X, Y)
         end
     end
 
-    println("\n=== Best pair (simplex-aware) ===")
+    println("\nBest pair (simplex-aware)")
     println("Best (i, j -> k) = ", best_pair, " with MSE = ", best_pair_mse)
 
     if best_pair_data !== nothing
@@ -305,7 +305,28 @@ function act_vs_grevlex(
     trace_sr, _ = groebner_learn(ideal, ordering = order)
     trace_grev, _ = groebner_learn(ideal, ordering = DegRevLex())
 
-    return reward(trace_sr) - reward(trace_grev)
+    sr_reward = reward(trace_sr)
+    grev_reward = reward(trace_grev)
+    return sr_reward, grev_reward, sr_reward - grev_reward
+end
+
+function compute_stats(agent_rewards, baseline_rewards, name)
+    total = length(agent_rewards)
+    @assert total == length(baseline_rewards) "agent and baseline lengths differ"
+
+    wins = [a > b for (a, b) in zip(agent_rewards, baseline_rewards)]
+    win_pct = 100 * count(wins) / total
+
+    improvements = [
+        (a - b) / max(abs(b), 1e-8) * 100 for
+        (a, b) in zip(agent_rewards, baseline_rewards) if a > b
+    ]
+    avg_improvement = isempty(improvements) ? 0.0 : mean(improvements)
+
+    println("agent vs $name")
+    println("percent of time agent wins: $(round(win_pct, digits = 2)) percent")
+    println("average improvement percent: $(round(avg_improvement, digits = 2)) percent")
+    println()
 end
 
 function evaluate_sr_bestpair_vs_grevlex(
@@ -317,10 +338,7 @@ function evaluate_sr_bestpair_vs_grevlex(
     mm_template = SAMPLES[1].monomial_matrix
     n_polys, n_terms, nvars = monomial_matrix_shape(mm_template)
 
-    @assert nvars == size(Y, 2) "SR was trained for $(size(Y,2)) weights, \
-but monomial_matrix has $nvars variables."
-
-
+    @assert nvars == size(Y, 2) "SR was trained for $(size(Y,2)) weights, but monomial_matrix has $nvars variables."
 
     ideals_test, vars, base_set = new_generate_data(
         num_ideals = M,
@@ -340,32 +358,38 @@ but monomial_matrix has $nvars variables."
     w_int = predict_weights_from_best_pair(best_pair_mach, best_pair, mm_template)
     println("Weight Vector $w_int")
 
-    rewards = Float64[]
+    rewards_sr = Float64[]
+    rewards_grev = Float64[]
+    delta_rewards = Float64[]
+
     for (idx, ideal) in enumerate(ideals_test)
         if idx % 100 == 0
             println("evaluating ideal $idx / $M")
         end
 
-        delta_r = act_vs_grevlex(w_int, vars, ideal)
+        sr_reward, grev_reward, delta_reward = act_vs_grevlex(w_int, vars, ideal)
         if idx % 100 == 0
-            println("current reward: $delta_r")
+            println("current delta reward: $delta_reward")
         end
-        push!(rewards, delta_r)
+
+        push!(rewards_sr, sr_reward)
+        push!(rewards_grev, grev_reward)
+        push!(delta_rewards, delta_reward)
     end
 
-    avg_reward = mean(rewards)
-    min_reward = minimum(rewards)
-    max_reward = maximum(rewards)
+    avg_delta = mean(delta_rewards)
+    min_delta = minimum(delta_rewards)
+    max_delta = maximum(delta_rewards)
 
     println("\nsymbolic regression best-pair ordering vs grevlex on $M random ideals")
-    println("Average delta_reward (symbolic - grevlex): $avg_reward")
-    println("Minimum delta_reward:                $min_reward")
-    println("Maximum delta_reward:                $max_reward")
+    println("Average delta_reward (symbolic - grevlex): $avg_delta")
+    println("Minimum delta_reward:                      $min_delta")
+    println("Maximum delta_reward:                      $max_delta")
 
-    return rewards
+    compute_stats(rewards_sr, rewards_grev, "DegRevLex")
+
+    return delta_rewards
 end
-
-
 
 function mse(A, B)
     @assert size(A) == size(B)
@@ -397,7 +421,7 @@ mean_vec = mean(Y, dims = 1)
 Y_mean = repeat(mean_vec, ns, 1)
 println("\nMSE(constant mean predictor) = ", mse(Y, Y_mean))
 
-println("\n=== Full 3-target SR (no simplex constraint enforced) ===")
+println("\nFull 3-target SR (no simplex constraint enforced)")
 
 model_full = make_model()
 mach_full = machine(model_full, X, Y)
@@ -419,7 +443,6 @@ end
 y_pred_full = predict(mach_full, X)
 @assert size(y_pred_full) == size(Y)
 println("MSE(SR model, 3 targets) = ", mse(Y, y_pred_full))
-
 
 best_pair_mse, best_pair, best_pair_data, best_pair_mach = simplex_aware_sr(X, Y)
 
