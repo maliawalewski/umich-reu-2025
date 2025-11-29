@@ -1,5 +1,8 @@
+using Statistics
+using SymbolicUtils
+using Latexify
 using SymbolicRegression
-import SymbolicRegression: MultitargetSRRegressor
+import SymbolicRegression: MultitargetSRRegressor, node_to_symbolic
 import MLJ: machine, fit!, predict, report
 include("ideal_ordering_pairs.jl")
 
@@ -59,11 +62,26 @@ end
 X, Y = build_sr_dataset(SAMPLES)
 println("X dims: $(size(X)), Y dims: $(size(Y))")
 
+"""
 model = MultitargetSRRegressor(
-    niterations = 50,
+    niterations = 100,
     binary_operators = [+, -, *, /],
     unary_operators = [],
-    populations = 20,
+    populations = 100,
+    parallelism = :multithreading,
+)
+"""
+
+square(x) = x^2
+cube(x) = x^3
+
+model = MultitargetSRRegressor(
+    niterations = 300,
+    populations = 100,
+    binary_operators = [+, -, *, /],
+    unary_operators = [square, cube],
+    maxsize = 20,
+    parsimony = 1e-3,
     parallelism = :multithreading,
 )
 
@@ -71,8 +89,40 @@ mach = machine(model, X, Y)
 fit!(mach)
 
 r = report(mach)
-println("\nFull report:")
-println(r)
+n_targets = size(Y, 2)
+
+for j = 1:n_targets
+    best_expr = r.equations[j][r.best_idx[j]]
+
+    println("\nTarget y[$j]")
+    println("Expression: ", best_expr)
+
+    eqn = node_to_symbolic(best_expr)
+
+    println("Symbolic form: ", eqn)
+    println("LaTeX: ", latexify(string(eqn)))
+end
 
 y_pred = predict(mach, X)
-println("\nPredicted weights for first sample: $(y_pred[1, :])")
+
+function mse(A, B)
+    @assert size(A) == size(B)
+    mean((A .- B) .^ 2)
+end
+
+mean_vec = mean(Y, dims = 1)
+Y_mean = repeat(mean_vec, size(Y, 1), 1)
+
+println("MSE(constant mean predictor) = ", mse(Y, Y_mean))
+println("MSE(SR model)                = ", mse(Y, y_pred))
+
+
+println("\nPredicted vs Actual weights per sample:")
+@assert size(y_pred) == size(Y) "prediction matrix size does not match target size."
+
+for i = 1:size(Y, 1)
+    println("Sample $i:")
+    println("Actual: $(Y[i, :])")
+    println("Predicted: $(y_pred[i, :])")
+    println()
+end
