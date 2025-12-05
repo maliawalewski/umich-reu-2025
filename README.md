@@ -22,12 +22,12 @@ julia main.jl --baseset=DEFAULT --LSTM=false --PER=true
 ### Flags for symbolic regression:
 | Flag | Type | Default |Description                                                                                
 ---|---|---|---
-`--train` | Bool | `true` | `true` → train a symbolic regression model; `false` → skip training the symbolic regression model.         
-`--test` | Bool | `true` | `true` → evaluate the symbolic regression model; `false` → skip evaluating the symbolic regression model. 
-`--sr_mode` | String | `3target` | `3target` → learn an equation for each of the three weights; `2target` → learn equations for two weights and derive the third as `1 - w₁ - w₂`. 
-`--load_model` | Bool | `false` | `true` → load a symbolic regression model from `SR_MODEL_PATH` instead of training; `false` → do not load a model (train from scratch). 
-`--num_eval_ideals` | Int | `10` | Number of random ideal support sets used when testing the symbolic regression model. 
-`--eval_coefficients_per_ideal` | Int | `1000` | Number of random ideals (coefficients) per eval support set to test the model with. 
+`‑‑train` | Bool | `true` | `true` → train a symbolic regression model; `false` → skip training the symbolic regression model.         
+`‑‑test` | Bool | `true` | `true` → evaluate the symbolic regression model; `false` → skip evaluating the symbolic regression model. 
+`‑‑sr_mode` | String | `3target` | `3target` → learn an equation for each of the three weights; `2target` → learn equations for two weights and derive the third as `1 - w₁ - w₂`. 
+`‑‑load_model` | Bool | `false` | `true` → load a symbolic regression model from `SR_MODEL_PATH` instead of training; `false` → do not load a model (train from scratch). 
+`‑‑num_eval_ideals` | Int | `10` | Number of random ideal support sets used when testing the symbolic regression model. 
+`‑‑eval_coefficients_per_ideal` | Int | `1000` | Number of random ideals (coefficients) per eval support set to test the model with. 
 
 
 **Example:**
