@@ -4,3 +4,6 @@
 /src/data/
 /src/plots/
 /src/results/
+/src/symbolic_regression/results/
+/src/symbolic_regression/symbolic_outputs/
+/src/symbolic_regression/weights/
