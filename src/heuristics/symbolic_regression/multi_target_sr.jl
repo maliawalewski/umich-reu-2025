@@ -220,7 +220,7 @@ function predict_weights_from_best_pair(
     mach_pair,
     best_pair::NTuple{3,Int},
     monomial_matrix;
-    scale::Real = 100,
+    scale::Real = 1000,
 )
     (i, j, k) = best_pair
 
@@ -245,7 +245,7 @@ function predict_weights_from_best_pair(
     return w_int
 end
 
-function predict_weights_from_full_model(mach_full, monomial_matrix; scale::Real = 100)
+function predict_weights_from_full_model(mach_full, monomial_matrix; scale::Real = 1000)
     x_flat = flatten_monomial_matrix(monomial_matrix)
     X_new = reshape(x_flat, 1, :)
 
