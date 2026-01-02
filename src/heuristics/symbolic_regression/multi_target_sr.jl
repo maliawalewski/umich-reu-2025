@@ -11,8 +11,8 @@ using SymbolicRegression
 import SymbolicRegression: MultitargetSRRegressor, node_to_symbolic
 import MLJ: machine, fit!, predict, report
 
-include("ideal_ordering_pairs.jl")
-include("../data.jl")
+include("../ideal_ordering_pairs.jl")
+include("../../data.jl")
 
 BASE_DIR = @__DIR__
 WEIGHTS_DIR = joinpath(BASE_DIR, "weights")

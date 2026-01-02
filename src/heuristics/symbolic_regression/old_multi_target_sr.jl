@@ -4,7 +4,7 @@ using Latexify
 using SymbolicRegression
 import SymbolicRegression: MultitargetSRRegressor, node_to_symbolic
 import MLJ: machine, fit!, predict, report
-include("ideal_ordering_pairs.jl")
+include("../ideal_ordering_pairs.jl")
 
 function monomial_matrix_shape(mm)
     @assert !isempty(mm) "monomial_matrix is empty"
