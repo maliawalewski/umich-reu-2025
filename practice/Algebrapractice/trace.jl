@@ -12,6 +12,7 @@ trace, gb = groebner_learn([x*y^2 + x, y*x^2 + y], ordering=Lex())
 # println(trace)
 
 for (k, v) in trace.recorded_traces
+    println("matrix infos")
     println(v.matrix_infos)
     for e in v.matrix_infos
         println(e[3])
