@@ -10,3 +10,6 @@
 /src/heuristics/decision_tree/**
 !/src/heuristics/decision_tree/regular-soft-decision.jl
 /src/heuristics/lasso_regression/outputs
+/src/extra/RewardVsTime/reward_vs_time.csv
+/src/extra/RewardVsTime/*.bin
+/src/extra/RewardVsTime/reward_vs_time.pdf

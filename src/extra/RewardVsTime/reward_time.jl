@@ -4,7 +4,16 @@ using Statistics
 using Groebner
 using Plots
 
+using Random
+using DataFrames
+using CSV
+
 BASE_SET_PATH = "./rvt_baseset.bin"
+OUT_CSV_PATH = "reward_vs_time.csv"
+SEED = 1
+
+Random.seed!(SEED)
+@info "Using RNG seed = $SEED"
 
 function new_generate_ideal(;
     num_variables::Integer = 3,
@@ -109,7 +118,7 @@ end
 
 function reward(trace::Groebner.WrappedTrace)
     @assert length(trace.recorded_traces) == 1 "WrappedTrace struct is tracking multiple traces"
-    total_reward = Float64(0.0f0)
+    total_reward = Float64(0.0)
     for (k, t) in trace.recorded_traces
         @assert length(t.critical_pair_sequence) == (length(t.matrix_infos) - 1) "length of critical_pair_sequence and matrix_infos do not match"
         for i = 1:length(t.critical_pair_sequence)
@@ -117,8 +126,7 @@ function reward(trace::Groebner.WrappedTrace)
             pair_degree = t.critical_pair_sequence[i][1]
             pair_count = t.critical_pair_sequence[i][2]
 
-            total_reward +=
-                (Float64(n_cols)) * Float64(log(pair_degree)) * (Float64(pair_count))
+            total_reward += (n_cols) * log(Float64(pair_degree)) * Float64(pair_count)
         end
     end
     return -total_reward
@@ -126,7 +134,7 @@ end
 
 base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
 
-ideals, vars, monomial_matrix = new_generate_data(
+ideals, vars, base_sets_used = new_generate_data(
     num_ideals = 1,
     num_polynomials = 3,
     num_variables = 3,
@@ -140,34 +148,69 @@ ideals, vars, monomial_matrix = new_generate_data(
 
 ideal = ideals[1]
 
+println("ideal: $ideal")
+
 grevlex_trace, _ = groebner_learn(ideal, ordering = DegRevLex())
 baseline_reward = reward(grevlex_trace)
 
+@info "Warming up compilation/caches..."
+warm_actions = [(30,30,30), (50,50,50), (70,70,70)]
+for a in warm_actions
+    weights = zip(vars, a)
+    order = WeightedOrdering(weights...)
+    tr, _ = groebner_learn(ideal, ordering = order)
+    _ = reward(tr)
+end
+GC.gc()
+@info "Warmup done."
+
 times = Float64[]
 rewards = Float64[]
+
+df = DataFrame(
+    seed = Int[],
+    i = Int[],
+    j = Int[],
+    k = Int[],
+    time_s = Float64[],
+    reward = Float64[],
+    baseline_reward = Float64[],
+    reward_delta = Float64[],
+)
 
 for i = 30:5:70, j = 30:5:70, k = 30:5:70
     action = (i, j, k)
     weights = zip(vars, action)
     order = WeightedOrdering(weights...)
 
+    GC.gc()
+
+    local tr::Groebner.WrappedTrace
     elapsed = @elapsed begin
-        trace, _ = groebner_learn(ideal, ordering = order)
-        push!(rewards, (reward(trace) - baseline_reward))
+        tr, _ = groebner_learn(ideal, ordering = order)
     end
 
+    r = reward(tr)
+    reward_delta = r - baseline_reward
+
     push!(times, elapsed)
-    @info "action=$action → time=$(round(elapsed,digits=4))s, reward=$(round(rewards[end],digits=3))"
+    push!(rewards, reward_delta)
+
+    push!(df, (SEED, i, j, k, elapsed, r, baseline_reward, reward_delta))
+    @info "action=$action time=$(round(elapsed,digits=4))s, reward_delta=$(round(reward_delta,digits=3))"
 end
 
-times_plot = times[2:end]
-rewards_plot = rewards[2:end]
+CSV.write(OUT_CSV_PATH, df)
+@info "Wrote CSV to $(abspath(OUT_CSV_PATH)) with $(nrow(df)) rows"
+
+times_plot = times
+rewards_plot = rewards
 
 p = scatter(
     times_plot,
     rewards_plot,
     xlabel = "Computation time (s)",
-    ylabel = "Reward",
+    ylabel = "Reward (delta vs DegRevLex)",
     legend = false,
     markersize = 2,
     color = :green,
@@ -175,3 +218,4 @@ p = scatter(
 )
 
 savefig(p, "reward_vs_time.pdf")
+
