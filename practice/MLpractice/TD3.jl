@@ -130,9 +130,9 @@ function main()
 
             online_q_input = vcat(s_batch, a_batch)
             q_online_val_1 = q_theta_1(online_q_input)
-            println("Q1: $q_online_val_1")
+            # println("Q1: $q_online_val_1")
             q_online_val_2 = q_theta_2(online_q_input)
-            println("Q2: $q_online_val_2")
+            # println("Q2: $q_online_val_2")
 
             loss1, back1 = Flux.withgradient(q_theta_1) do model
                 pred = model(vcat(s_batch, a_batch))
