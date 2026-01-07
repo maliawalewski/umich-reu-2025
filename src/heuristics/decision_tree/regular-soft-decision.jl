@@ -97,16 +97,19 @@ end
 Flux.@functor SoftDecisionTree
 
 # function SoftDecisionTree(input_dim::Int, output_dim::Int, depth::Int)
-    # @assert depth >= 1 "depth must be >= 1"
-    # nodes = [SoftNode(Dense(input_dim, 1, sigmoid)) for _ = 1:(2^depth-1)]
-    # leaves = [Leaf(randn(Float32, output_dim)) for _ = 1:(2^depth)]
-    # return SoftDecisionTree(depth, nodes, leave)
+# @assert depth >= 1 "depth must be >= 1"
+# nodes = [SoftNode(Dense(input_dim, 1, sigmoid)) for _ = 1:(2^depth-1)]
+# leaves = [Leaf(randn(Float32, output_dim)) for _ = 1:(2^depth)]
+# return SoftDecisionTree(depth, nodes, leave)
 # end
 
 function SoftDecisionTree(rng::AbstractRNG, input_dim::Int, output_dim::Int, depth::Int)
     @assert depth >= 1 "depth must be >= 1"
-    nodes  = [SoftNode(Dense(input_dim, 1, sigmoid; init = Flux.glorot_uniform(rng))) for _=1:(2^depth-1)]
-    leaves = [Leaf(randn(rng, Float32, output_dim)) for _=1:(2^depth)]
+    nodes = [
+        SoftNode(Dense(input_dim, 1, sigmoid; init = Flux.glorot_uniform(rng))) for
+        _ = 1:(2^depth-1)
+    ]
+    leaves = [Leaf(randn(rng, Float32, output_dim)) for _ = 1:(2^depth)]
     return SoftDecisionTree(depth, nodes, leaves)
 end
 
@@ -201,7 +204,15 @@ function export_viz(
     end
 end
 
-function train_tree(X, Y; depth::Int, lr::Float64, lambda::Float64, epochs::Int, rng::AbstractRNG)
+function train_tree(
+    X,
+    Y;
+    depth::Int,
+    lr::Float64,
+    lambda::Float64,
+    epochs::Int,
+    rng::AbstractRNG,
+)
     @assert size(X, 2) == size(Y, 2) "X and Y must have same number of columns"
     input_dim = size(X, 1)
     output_dim = size(Y, 1)
@@ -284,14 +295,20 @@ function cross_validate_base_set_prediction(
         tr_rng = child_rng(master, 20_000 + f)
 
         tree = train_tree(
-            Xtr, Ytr;
-            depth = depth, lr = lr, lambda = lambda, epochs = epochs,
-            rng = tr_rng
+            Xtr,
+            Ytr;
+            depth = depth,
+            lr = lr,
+            lambda = lambda,
+            epochs = epochs,
+            rng = tr_rng,
         )
 
         r = eval_tree_prediction(tree, Xte, Yte)
 
-        println("Fold $f/$k: test MSE=$(round(r.mse, sigdigits=5)), test cos=$(round(r.cos, sigdigits=5))")
+        println(
+            "Fold $f/$k: test MSE=$(round(r.mse, sigdigits=5)), test cos=$(round(r.cos, sigdigits=5))",
+        )
         push!(mses, r.mse)
         push!(coss, r.cos)
     end
@@ -336,9 +353,13 @@ function cross_validate_base_set_downstream(
 
         tr_rng = child_rng(master, 40_000 + f)
         tree = train_tree(
-            Xtr, Ytr;
-            depth = depth, lr = lr, lambda = lambda, epochs = epochs,
-            rng = tr_rng
+            Xtr,
+            Ytr;
+            depth = depth,
+            lr = lr,
+            lambda = lambda,
+            epochs = epochs,
+            rng = tr_rng,
         )
 
         heldout_scores = Float64[]
@@ -356,7 +377,9 @@ function cross_validate_base_set_downstream(
             push!(heldout_scores, s_mean)
 
             if !do_print
-                println("Held-out sample index $i: mean reward_diff (tree - grevlex) = $s_mean")
+                println(
+                    "Held-out sample index $i: mean reward_diff (tree - grevlex) = $s_mean",
+                )
             end
         end
 
@@ -368,7 +391,9 @@ function cross_validate_base_set_downstream(
 
     println("\n==============================")
     println("Downstream CV summary over $k folds")
-    println("Mean reward_diff (tree - grevlex): mean=$(mean(fold_means)) std=$(std(fold_means))")
+    println(
+        "Mean reward_diff (tree - grevlex): mean=$(mean(fold_means)) std=$(std(fold_means))",
+    )
     println("==============================")
 
     return fold_means
@@ -670,7 +695,12 @@ function main(;
 
         for b = 1:num_eval_batches
             println("\nEvaluating tree on ideal batch $b / $num_eval_batches")
-            _ = evaluate_tree_vs_grevlex(tree, Y; num_ideals = eval_per_batch, scale = scale)
+            _ = evaluate_tree_vs_grevlex(
+                tree,
+                Y;
+                num_ideals = eval_per_batch,
+                scale = scale,
+            )
         end
     end
 

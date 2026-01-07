@@ -154,7 +154,7 @@ grevlex_trace, _ = groebner_learn(ideal, ordering = DegRevLex())
 baseline_reward = reward(grevlex_trace)
 
 @info "Warming up compilation/caches..."
-warm_actions = [(30,30,30), (50,50,50), (70,70,70)]
+warm_actions = [(30, 30, 30), (50, 50, 50), (70, 70, 70)]
 for a in warm_actions
     weights = zip(vars, a)
     order = WeightedOrdering(weights...)
@@ -218,4 +218,3 @@ p = scatter(
 )
 
 savefig(p, "reward_vs_time.pdf")
-

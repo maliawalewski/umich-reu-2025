@@ -1,19 +1,19 @@
 using AbstractAlgebra
 using Serialization
-
-# data.jl generates synthetic polynomial ideals
+using Random
 
 function old_generate_ideal(;
+    rng::AbstractRNG,
     num_polynomials::Integer = 3,
     num_variables::Integer = 3,
     max_degree::Integer = 4,
     num_terms::Integer = 3,
     max_attempts::Integer = 100,
 )
-    @assert num_polynomials > 0 "num_polynomials must be greater than 0"
-    @assert num_variables > 0 "num_variables must be greater than 0"
-    @assert max_degree > 0 "max_degree must be greater than 0"
-    @assert num_terms > 0 "num_terms must be greater than 0"
+    @assert num_polynomials > 0
+    @assert num_variables > 0
+    @assert max_degree > 0
+    @assert num_terms > 0
 
     field = GF(32003)
     ring, vars = polynomial_ring(field, ["x_" * string(i) for i = 1:num_variables])
@@ -24,28 +24,29 @@ function old_generate_ideal(;
         p_attempts = 0
         while true
             used_exponents = Set{NTuple{num_variables,Int}}()
-            terms = []
+            terms = Any[]
             for _ = 1:num_terms
                 attempts = 0
                 while true
-                    exponents = rand(0:max_degree, num_variables)
+                    exponents = rand(rng, 0:max_degree, num_variables)
                     expt_key = Tuple(exponents)
                     if !(expt_key in used_exponents)
                         push!(used_exponents, expt_key)
-                        coeff = rand(field)
+
+                        coeff = rand(rng, field)
                         c_attempts = 0
                         while coeff == 0
-                            coeff = rand(field)
+                            coeff = rand(rng, field)
                             c_attempts += 1
-                            @assert c_attempts <= max_attempts "failed to generate a non-zero coefficient after $max_attempts attempts"
+                            @assert c_attempts <= max_attempts
                         end
-                        monomial =
-                            coeff * prod(vars[i]^exponents[i] for i = 1:num_variables)
+
+                        monomial = coeff * prod(vars[i]^exponents[i] for i = 1:num_variables)
                         push!(terms, monomial)
                         break
                     end
                     attempts += 1
-                    @assert attempts <= max_attempts "failed to generate a unique random monomial after $max_attempts attempts"
+                    @assert attempts <= max_attempts
                 end
             end
             polynomial = sum(terms)
@@ -56,7 +57,7 @@ function old_generate_ideal(;
                 break
             end
             p_attempts += 1
-            @assert p_attempts <= max_attempts "failed to generate a unique random polynomial after $max_attempts attempts"
+            @assert p_attempts <= max_attempts
         end
     end
 
@@ -64,6 +65,7 @@ function old_generate_ideal(;
 end
 
 function old_generate_data(;
+    rng::AbstractRNG,
     num_ideals::Integer = 1000,
     num_polynomials::Integer = 3,
     num_variables::Integer = 3,
@@ -71,12 +73,14 @@ function old_generate_data(;
     num_terms::Integer = 3,
     max_attempts::Integer = 100,
 )
-    @assert num_ideals > 0 "num_ideals must be greater than 0"
+    @assert num_ideals > 0
 
-    ideals = []
+    ideals = Vector{Any}()
     variables = nothing
+
     for _ = 1:num_ideals
         ideal, vars = old_generate_ideal(
+            rng = rng,
             num_polynomials = num_polynomials,
             num_variables = num_variables,
             max_degree = max_degree,
@@ -91,6 +95,7 @@ function old_generate_data(;
 end
 
 function n_site_phosphorylation_generate_ideal(;
+    rng::AbstractRNG,
     num_variables::Integer = 2,
     num_polynomials::Integer = 2,
     num_terms::Integer,
@@ -99,18 +104,19 @@ function n_site_phosphorylation_generate_ideal(;
 )
     @assert num_variables == 2 "n-site Eq.(2.6) generator requires num_variables == 2"
     @assert num_polynomials == 2 "n-site Eq.(2.6) generator requires num_polynomials == 2"
-    @assert length(base_sets) == num_polynomials "number of base_sets does not match the number of polynomials"
-    @assert length(base_sets[1]) == num_terms "number of exponents in base_set does not match the number of terms"
+    @assert length(base_sets) == num_polynomials
+    @assert length(base_sets[1]) == num_terms
     @assert base_sets[1] == base_sets[2] "Both polynomials must share the same support set (same ordering)"
     A = base_sets[1]
 
-    @assert !isempty(A) "empty base set"
-    @assert all(length(e) == 2 for e in A) "exponents must be of the form [e1, e2]"
-    @assert A[1] == [1, 0] "Expected first exponent [1,0]"
-    @assert A[2] == [0, 1] "Expected second exponent [0,1]"
-    @assert A[end] == [0, 0] "Expected last exponent [0,0]"
+    @assert !isempty(A)
+    @assert all(length(e) == 2 for e in A)
+    @assert A[1] == [1, 0]
+    @assert A[2] == [0, 1]
+    @assert A[end] == [0, 0]
+
     middles = A[3:(end-1)]
-    @assert all(e[1] == 1 && e[2] ≥ 1 for e in middles) "Middle exponents must be (1,j) with j≥1"
+    @assert all(e[1] == 1 && e[2] >= 1 for e in middles) "Middle exponents must be (1,j) with j>=1"
     js = sort!(unique(e[2] for e in middles))
     @assert js == collect(1:length(middles)) "Middle exponents must be consecutive (1..n)"
     n = length(middles)
@@ -120,12 +126,12 @@ function n_site_phosphorylation_generate_ideal(;
     x1, x2 = vars
 
     rand_nonzero() = begin
-        c = rand(F)
+        c = rand(rng, F)
         tries = 1
         while c == 0
             tries += 1
-            @assert tries <= max_attempts "failed to generate a non-zero element after $max_attempts attempts"
-            c = rand(F)
+            @assert tries <= max_attempts
+            c = rand(rng, F)
         end
         c
     end
@@ -134,18 +140,15 @@ function n_site_phosphorylation_generate_ideal(;
     Etot = rand_nonzero()
     Ftot = rand_nonzero()
 
-    # T_j (j = 0..n-1), K_j (j = 0..n-1)
     T = [rand_nonzero() for _ = 1:n]
     K = [rand_nonzero() for _ = 1:n]
 
-    # beta_j = K_j * T_{j-1} / (Ftot^j) with T_{-1} := 1
     beta = Vector{typeof(F(0))}(undef, n)
     for j = 0:(n-1)
         Tprev = (j == 0) ? F(1) : T[j]
         beta[j+1] = K[j+1] * Tprev / (Ftot ^ j)
     end
 
-    # Row 1
     row1 = Vector{typeof(F(0))}(undef, n + 3)
     row1[1] = F(1)
     row1[2] = F(0)
@@ -155,7 +158,6 @@ function n_site_phosphorylation_generate_ideal(;
     end
     row1[end] = -Stot
 
-    # Row 2
     row2 = Vector{typeof(F(0))}(undef, n + 3)
     row2[1] = F(0)
     row2[2] = F(1)
@@ -184,33 +186,33 @@ function n_site_phosphorylation_generate_ideal(;
 end
 
 function new_generate_ideal(;
+    rng::AbstractRNG,
     num_variables::Integer = 3,
     num_polynomials::Integer = 3,
     num_terms::Integer = 3,
     base_sets::Vector{Any} = Vector{Any}(),
     max_attempts::Integer = 100,
 )
-
-    @assert num_variables > 0 "num_variables must be greater than 0"
-    @assert length(base_sets) == num_polynomials "number of base_sets does not match the number of polynomials"
-    @assert length(base_sets[1]) == num_terms "number of exponents in base_set does not match the number of terms"
+    @assert num_variables > 0
+    @assert length(base_sets) == num_polynomials
+    @assert length(base_sets[1]) == num_terms
 
     field = GF(32003)
     ring, vars = polynomial_ring(field, ["x_" * string(i) for i = 1:num_variables])
     polynomials = Vector{typeof(vars[1])}()
 
     for base_set in base_sets
-        terms = []
+        terms = Any[]
         for e in base_set
             if e[1] == -1
                 continue
             end
-            coeff = rand(field)
+            coeff = rand(rng, field)
             c_attempts = 0
             while coeff == 0
-                coeff = rand(field)
+                coeff = rand(rng, field)
                 c_attempts += 1
-                @assert c_attempts <= max_attempts "failed to generate a non-zero coefficient after $max_attempts attempts"
+                @assert c_attempts <= max_attempts
             end
             monomial = coeff * prod(vars[i]^e[i] for i = 1:num_variables)
             push!(terms, monomial)
@@ -223,6 +225,7 @@ function new_generate_ideal(;
 end
 
 function new_generate_data(;
+    rng::AbstractRNG,
     num_ideals::Integer = 1000,
     num_polynomials::Integer = 3,
     num_variables::Integer = 3,
@@ -232,20 +235,19 @@ function new_generate_data(;
     base_sets::Union{Nothing,Vector{Any}} = nothing,
     base_set_path::Union{Nothing,String} = nothing,
     should_save_base_sets::Bool = false,
-    use_n_site_phosphorylation_coeffs = false,
+    use_n_site_phosphorylation_coeffs::Bool = false,
 )
-
-    @assert num_ideals > 0 "num_ideals must be greater than 0"
+    @assert num_ideals > 0
 
     if base_sets === nothing
-        base_sets = []
+        base_sets = Any[]
         for _ = 1:num_polynomials
             used_exponents = Set{NTuple{num_variables,Int}}()
-            base_set = []
+            base_set = Any[]
             for _ = 1:num_terms
                 attempts = 0
                 while true
-                    exponents = rand(0:max_degree, num_variables)
+                    exponents = rand(rng, 0:max_degree, num_variables)
                     expt_key = Tuple(exponents)
                     if !(expt_key in used_exponents)
                         push!(used_exponents, expt_key)
@@ -253,7 +255,7 @@ function new_generate_data(;
                         break
                     end
                     attempts += 1
-                    @assert attempts <= max_attempts "failed to generate a unique monomial after $max_attempts attempts"
+                    @assert attempts <= max_attempts
                 end
             end
             push!(base_sets, base_set)
@@ -263,11 +265,13 @@ function new_generate_data(;
         end
     end
 
-    ideals = []
+    ideals = Vector{Any}()
     variables = nothing
+
     for _ = 1:num_ideals
         if use_n_site_phosphorylation_coeffs
             ideal, vars = n_site_phosphorylation_generate_ideal(
+                rng = rng,
                 num_variables = num_variables,
                 num_polynomials = num_polynomials,
                 num_terms = num_terms,
@@ -278,6 +282,7 @@ function new_generate_data(;
             push!(ideals, ideal)
         else
             ideal, vars = new_generate_ideal(
+                rng = rng,
                 num_variables = num_variables,
                 num_polynomials = num_polynomials,
                 num_terms = num_terms,
@@ -287,8 +292,6 @@ function new_generate_data(;
             variables = vars
             push!(ideals, ideal)
         end
-
-
     end
 
     return ideals, variables, base_sets

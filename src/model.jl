@@ -7,6 +7,10 @@ using Optimisers
 using Plots
 using LinearAlgebra
 using BSON
+using DataFrames
+using CSV
+using Dates
+using Random
 include("environment.jl")
 include("utils.jl")
 include("basesets.jl")
@@ -30,12 +34,15 @@ for d in (DATA_DIR, WEIGHTS_DIR, RESULTS_DIR, PLOTS_DIR)
     isdir(d) || mkpath(d)
 end
 
+# Logging parameters
+DEGLEX_CACHE_EVERY = 1 # how often to record DEGLEX Reward
+CSV_FLUSH_EVERY_EPISODES = 50 # how often to write to CSV of results
 
 # Environment parameters
 # if a baseset is not passed to environment we have to fall back to generating random polynomials
-DEFAULT_NUM_VARS = 3 
-DEFAULT_NUM_TERMS = 6 
-DEFAULT_NUM_POLYS = 3 
+DEFAULT_NUM_VARS = 3
+DEFAULT_NUM_TERMS = 6
+DEFAULT_NUM_POLYS = 3
 DEFAULT_MAX_DEGREE = 4
 
 DELTA_BOUND = 0.1f0 # Max shift from current state
@@ -115,18 +122,19 @@ function init_critics(
     )
 end
 
-function build_td3_model(env::Environment, args::Dict{String, Any})
-
+function build_td3_model(env::Environment, args::Dict{String,Any})
     if args["lstm"]
         # LSTM layer actor
-        actor_layers = Any[LSTM(((env.num_vars * env.num_terms) + 1) * env.num_polys => ACTOR_HIDDEN_WIDTH)]
-        for l in 1:(ACTOR_DEPTH - 1)
+        actor_layers = Any[LSTM(
+            ((env.num_vars * env.num_terms) + 1) * env.num_polys => ACTOR_HIDDEN_WIDTH,
+        )]
+        for l = 1:(ACTOR_DEPTH-1)
             layer = LSTM(ACTOR_HIDDEN_WIDTH => ACTOR_HIDDEN_WIDTH)
             push!(actor_layers, layer)
         end
         push!(actor_layers, Dense(ACTOR_HIDDEN_WIDTH, env.num_vars, sigmoid))
         actor = Flux.Chain(actor_layers...)
-    else 
+    else
         # Original dense layer actor
         actor = Flux.Chain(
             Dense(
@@ -195,10 +203,14 @@ function train_td3!(
     actor::Actor,
     critic::Critics,
     env::Environment,
-    replay_buffer::Union{PrioritizedReplayBuffer, CircularBuffer{Transition}},
+    replay_buffer::Union{PrioritizedReplayBuffer,CircularBuffer{Transition}},
     initial_actor_lr::Float64,
     initial_critic_lr::Float64,
-    args::Dict{String, Any},
+    args::Dict{String,Any},
+    rng_data::AbstractRNG,
+    rng_policy::AbstractRNG,
+    rng_buffer::AbstractRNG,
+    rng_env::AbstractRNG,
 )
 
     losses = []
@@ -207,11 +219,43 @@ function train_td3!(
     losses_1 = []
     losses_2 = []
 
+    run_tag = "td3_" * string(args["baseset"]) * "_seed" * string(args["seed"])
+
+    train_steps_csv = joinpath(RESULTS_DIR, run_tag * "_train_agent_metrics.csv")
+    train_episode_csv = joinpath(RESULTS_DIR, run_tag * "_train_baseline_metrics.csv")
+    train_updates_csv = joinpath(RESULTS_DIR, run_tag * "_train_losses.csv")
+
+    train_steps_df = DataFrame(
+        global_timestep = Int[],
+        episode = Int[],
+        step_in_episode = Int[],
+        raw_reward = Float64[],
+        delta_vs_grevlex_reward = Float64[],
+        agent_batch_time_s = Float64[],
+        agent_mean_time_s = Float64[],
+    )
+
+
+    train_episode_df = DataFrame(
+        episode = Int[],
+        grevlex_mean_reward = Float64[],
+        grevlex_mean_time_s = Float64[],
+        deglex_mean_reward = Float64[],
+        deglex_mean_time_s = Float64[],
+    )
+
+    train_updates_df = DataFrame(
+        global_timestep = Int[],
+        critic1_loss = Float64[],
+        critic2_loss = Float64[],
+        actor_loss = Float64[],
+    )
+
     current_actor_lr = initial_actor_lr
     current_critic_lr = initial_critic_lr
 
     base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
-    
+
     if args["baseset"] == "N_SITE_PHOSPHORYLATION_BASE_SET"
         base_sets = N_SITE_PHOSPHORYLATION_BASE_SET
     elseif args["baseset"] == "RELATIVE_POSE_BASE_SET"
@@ -220,11 +264,9 @@ function train_td3!(
         base_sets = TRIANGULATION_BASE_SET
     elseif args["baseset"] == "WNT_BASE_SET"
         base_sets = WNT_BASE_SET
-    elseif args["baseset"] == "FOUR_PT_BASE_SET"
-        base_sets = FOUR_PT_BASE_SET
     elseif args["baseset"] == "DEFAULT"
         max_degree = DEFAULT_MAX_DEGREE
-    else 
+    else
         error("Unknown baseset: $(args["baseset"])")
     end
 
@@ -234,6 +276,7 @@ function train_td3!(
     end
 
     ideals, vars, monomial_matrix = new_generate_data(
+        rng = rng_data,
         num_ideals = EPISODES * NUM_IDEALS,
         num_polynomials = env.num_polys,
         num_variables = env.num_vars,
@@ -254,7 +297,7 @@ function train_td3!(
 
     for i = 1:EPISODES
         reset_env!(env)
-        
+
         if args["lstm"]
             Flux.reset!(actor.actor)
             Flux.reset!(actor.actor_target)
@@ -266,18 +309,34 @@ function train_td3!(
         end_idx = i * NUM_IDEALS
         env.ideal_batch = ideals[start_idx:end_idx]
 
+        compute_deglex = ((i % DEGLEX_CACHE_EVERY) == 0)
+        precompute_baselines!(env; compute_deglex = compute_deglex)
+
+        grevlex_mean_reward = mean(env.grevlex_reward_cache)
+        grevlex_mean_time_s = mean(env.grevlex_time_cache_s)
+
+        deglex_mean_reward = compute_deglex ? mean(env.deglex_reward_cache) : NaN
+        deglex_mean_time_s = compute_deglex ? mean(env.deglex_time_cache_s) : NaN
+
+        push!(
+            train_episode_df,
+            (
+                i,
+                grevlex_mean_reward,
+                grevlex_mean_time_s,
+                deglex_mean_reward,
+                deglex_mean_time_s,
+            ),
+        )
+
+
         s = Float32.(state(env))
 
         done = false
-        # episode_loss = []
-        # critic_1_episode_loss = []
-        # critic_2_episode_loss = []
-        # episode_rewards = []
-        # episode_actions = []
 
         while !done
             global_timestep += 1
-            epsilon = randn(env.num_vars, 1) .* STD
+            epsilon = randn(rng_policy, env.num_vars, 1) .* STD
 
             raw_matrix =
                 vcat([collect(Iterators.flatten(row))' for row in env.monomial_matrix]...)
@@ -312,6 +371,18 @@ function train_td3!(
 
             push!(rewards, r)
 
+            push!(
+                train_steps_df,
+                (
+                    global_timestep,
+                    i,
+                    env.iteration_count,
+                    env.last_raw_reward,
+                    env.last_delta_reward,
+                    env.last_agent_batch_time_s,
+                    env.last_agent_mean_time_s,
+                ),
+            )
 
             done = is_terminated(env)
             s_next = done ? nothing : s_next
@@ -329,9 +400,13 @@ function train_td3!(
                             s_input,
                             s_next_input,
                         ),
-                        abs(r),)
+                        abs(r),
+                    )
                 else
-                    push!(replay_buffer, Transition(s, action, r, s_next, s_input, s_next_input)) 
+                    push!(
+                        replay_buffer,
+                        Transition(s, action, r, s_next, s_input, s_next_input),
+                    )
                 end
 
             end
@@ -344,9 +419,9 @@ function train_td3!(
             end
 
             if args["per"]
-                batch, indices, weights = sample(replay_buffer)
-            else 
-                batch = rand(replay_buffer, N_SAMPLES)
+                batch, indices, weights = sample(rng_buffer, replay_buffer)
+            else
+                batch = rand(rng_buffer, replay_buffer, N_SAMPLES)
             end
 
             s_batch = hcat([b.s for b in batch]...)
@@ -367,8 +442,8 @@ function train_td3!(
             )
             not_done = reshape(Float32.(getfield.(batch, :s_next_input) .!== nothing), 1, :)
 
-            epsilon = clamp.(randn(1, N_SAMPLES) * STD, -0.05f0, 0.05f0)
-            
+            epsilon = clamp.(randn(rng_policy, 1, N_SAMPLES) * STD, -0.05f0, 0.05f0)
+
             if args["lstm"]
                 Flux.reset!(actor.actor_target)
             end
@@ -412,6 +487,8 @@ function train_td3!(
 
             push!(losses_2, loss2)
 
+            push!(train_updates_df, (global_timestep, Float64(loss1), Float64(loss2), NaN))
+
             Flux.update!(critic.critic_2_opt_state, critic.critic_2, back2[1])
 
             # Updating every D episodes 
@@ -430,6 +507,7 @@ function train_td3!(
                 end
 
                 push!(losses, actor_loss)
+                push!(train_updates_df, (global_timestep, NaN, NaN, Float64(actor_loss)))
 
                 grads = back[1]
                 Flux.update!(actor.actor_opt_state, actor.actor, grads)
@@ -456,6 +534,25 @@ function train_td3!(
             println("Saved TD3 checkpoint to $CHECKPOINT_PATH at episode $i")
         end
 
+        if i % CSV_FLUSH_EVERY_EPISODES == 0
+            CSV.write(train_steps_csv, train_steps_df; append = isfile(train_steps_csv))
+            CSV.write(
+                train_episode_csv,
+                train_episode_df;
+                append = isfile(train_episode_csv),
+            )
+            CSV.write(
+                train_updates_csv,
+                train_updates_df;
+                append = isfile(train_updates_csv),
+            )
+
+            empty!(train_steps_df)
+            empty!(train_episode_df)
+            empty!(train_updates_df)
+        end
+
+
         current_actor_lr = max(ACTOR_MIN_LR, current_actor_lr - ACTOR_LR_DECAY)
         current_critic_lr = max(CRITIC_MIN_LR, current_critic_lr - CRITIC_LR_DECAY)
 
@@ -464,6 +561,25 @@ function train_td3!(
         Flux.adjust!(critic.critic_2_opt_state, current_critic_lr)
 
     end
+
+    CSV.write(
+        train_steps_csv,
+        train_steps_df;
+        append = isfile(train_steps_csv),
+        writeheader = !isfile(train_steps_csv),
+    )
+    CSV.write(
+        train_episode_csv,
+        train_episode_df;
+        append = isfile(train_episode_csv),
+        writeheader = !isfile(train_episode_csv),
+    )
+    CSV.write(
+        train_updates_csv,
+        train_updates_df,
+        append = isfile(train_updates_csv),
+        writeheader = !isfile(train_updates_csv),
+    )
 
     episodes = 1:length(losses)
     loss_plot = scatter(
@@ -479,7 +595,6 @@ function train_td3!(
         legend = :topleft,
     )
 
-    # savefig(loss_plot, "actor_plot_newbase.pdf")
     savefig(loss_plot, ACTOR_PLOT_PATH)
 
     episodes2 = 1:length(rewards)
@@ -496,7 +611,6 @@ function train_td3!(
         legend = :bottomright,
     )
 
-    # savefig(reward_plot, "reward_plot_newbase.pdf")
     savefig(reward_plot, REWARD_PLOT_PATH)
 
     episodes_critic1 = 1:length(losses_1)
@@ -516,8 +630,9 @@ function train_td3!(
         title = ["Critic 1" "Critic 2"],
     )
 
-    # savefig(critic_plot, "critics_plot_newbase.pdf")
     savefig(critic_plot, CRITICS_PLOT_PATH)
+
+
 
 
     # n_cols_plot = scatter(1:length(n_cols_list), n_cols_list,
@@ -555,13 +670,13 @@ function train_td3!(
 
 end
 
-function test_td3!(actor::Actor, critic::Critics, env::Environment, args::Dict{String, Any})
+function test_td3!(actor::Actor, critic::Critics, env::Environment, args::Dict{String,Any}, rng_test::AbstractRNG, rng_env::AbstractRNG)
 
     rewards = []
     actions_taken = []
 
     base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
-    
+
     if args["baseset"] == "N_SITE_PHOSPHORYLATION_BASE_SET"
         base_sets = N_SITE_PHOSPHORYLATION_BASE_SET
     elseif args["baseset"] == "RELATIVE_POSE_BASE_SET"
@@ -572,7 +687,7 @@ function test_td3!(actor::Actor, critic::Critics, env::Environment, args::Dict{S
         base_sets = WNT_BASE_SET
     elseif args["baseset"] == "DEFAULT"
         max_degree = DEFAULT_MAX_DEGREE
-    else 
+    else
         error("Unknown baseset: $(args["baseset"])")
     end
 
@@ -582,6 +697,7 @@ function test_td3!(actor::Actor, critic::Critics, env::Environment, args::Dict{S
     end
 
     ideals, vars, monomial_matrix = new_generate_data(
+        rng = rng_test,
         num_ideals = NUM_TEST_IDEALS,
         num_polynomials = env.num_polys,
         num_variables = env.num_vars,
@@ -598,7 +714,7 @@ function test_td3!(actor::Actor, critic::Critics, env::Environment, args::Dict{S
     env.monomial_matrix = monomial_matrix
     println("Monomial_matrix: ", env.monomial_matrix)
 
-    test_batch = rand(ideals, TEST_BATCH_SIZE)
+    test_batch = rand(rng_test, ideals, TEST_BATCH_SIZE)
     test_batch_orders = []
     for (idx, ideal) in enumerate(test_batch)
         println("running inference on ideal: $idx")
@@ -609,11 +725,11 @@ function test_td3!(actor::Actor, critic::Critics, env::Environment, args::Dict{S
         env.ideal_batch = [ideal]
         s = Float32.(state(env))
         done = false
-        
+
         if args["lstm"]
             Flux.reset!(actor.actor_target)
         end
-        
+
         while !done
             raw_matrix =
                 vcat([collect(Iterators.flatten(row))' for row in env.monomial_matrix]...)
@@ -624,7 +740,7 @@ function test_td3!(actor::Actor, critic::Critics, env::Environment, args::Dict{S
             s_input =
                 reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_polys, 1))
             s_input = Float32.(s_input)
-            
+
             action = vec(actor.actor_target(s_input))
             basis = act!(env, action, false)
 
@@ -655,40 +771,57 @@ function test_td3!(actor::Actor, critic::Critics, env::Environment, args::Dict{S
     best_order = collect(best_order)
 
     agent_rewards = []
-    lex_rewards = []
+    # lex_rewards = []
     deglex_rewards = []
     grevlex_rewards = []
 
+
+    run_tag = "td3_" * string(args["baseset"]) * "_seed" * string(get(args, "seed", 0))
+    test_csv = joinpath(RESULTS_DIR, run_tag * "_test_metrics.csv")
+    order_csv = joinpath(RESULTS_DIR, run_tag * "_final_agent_weight_vector.csv")
+
+    test_df = DataFrame(
+        idx = Int[],
+        agent_reward = Float64[],
+        agent_time_s = Float64[],
+        deglex_reward = Float64[],
+        deglex_time_s = Float64[],
+        grevlex_reward = Float64[],
+        grevlex_time_s = Float64[],
+        agent_minus_grevlex_reward = Float64[],
+        agent_time_ratio_vs_grevlex = Float64[],
+    )
+
     for (idx, ideal) in enumerate(ideals)
+        idx % 100 == 0 && println("testing on ideal: $idx")
 
-        if idx % 100 == 0
-            println("testing on ideal: $idx")
-        end
+        ar, at = eval_order_on_ideal(ideal, vars, best_order)
+        push!(agent_rewards, ar)
 
-        reset_env!(env)
-        env.ideal_batch = [ideal]
-        basis = act!(env, best_order, false)
-        s_next = Float32.(state(env))
-        r = Float32(env.reward)
+        (tr_d, _), td = timed(() -> groebner_learn(ideal, ordering = DegLex()))
+        dr = Float64(reward(tr_d))
 
-        push!(agent_rewards, r)
+        (tr_g, _), tg = timed(() -> groebner_learn(ideal, ordering = DegRevLex()))
+        gr = Float64(reward(tr_g))
 
-        # lex_trace, lex_basis = groebner_learn(ideal, ordering = Lex())
-        # push!(lex_rewards, reward(lex_trace))
+        push!(deglex_rewards, dr)
+        push!(grevlex_rewards, gr)
 
-        deglex_trace, deglex_basis = groebner_learn(ideal, ordering = DegLex())
-        push!(deglex_rewards, reward(deglex_trace))
+        ratio = tg > 0 ? (at / tg) : NaN
 
-        grevlex_trace, grevlex_basis = groebner_learn(ideal, ordering = DegRevLex())
-        push!(grevlex_rewards, reward(grevlex_trace))
-
+        push!(test_df, (idx, ar, at, dr, td, gr, tg, ar - gr, ratio))
     end
 
-    serialize(joinpath(RESULTS_DIR, "agent_order.bin"), best_order)
-    serialize(joinpath(RESULTS_DIR, "agent_rewards.bin"), agent_rewards)
-    serialize(joinpath(RESULTS_DIR, "deglex_rewards.bin"), deglex_rewards)
-    serialize(joinpath(RESULTS_DIR, "grevlex_rewards.bin"), grevlex_rewards)
+    CSV.write(test_csv, test_df)
+    CSV.write(order_csv, DataFrame(var = 1:length(best_order), weight = best_order))
 
+    println("Wrote test metrics CSV to $test_csv")
+    println("Wrote final agent weight vector CSV to $order_csv")
+
+    serialize(joinpath(RESULTS_DIR, run_tag * "_final_agent_order.bin"), best_order)
+    serialize(joinpath(RESULTS_DIR, run_tag * "_test_agent_rewards.bin"), agent_rewards)
+    serialize(joinpath(RESULTS_DIR, run_tag * "_test_deglex_rewards.bin"), deglex_rewards)
+    serialize(joinpath(RESULTS_DIR, run_tag * "_test_grevlex_rewards.bin"), grevlex_rewards)
 
     rewards = agent_rewards
 
@@ -765,14 +898,28 @@ function normalize_columns(M::AbstractMatrix)
     mapslices(x -> x / (norm(x) + 1e-8), M; dims = 1)
 end
 
-function load_td3(env::Environment, args::Dict{String, Any})
+function eval_order_on_ideal(ideal, vars, weights_int)
+    weights = zip(vars, weights_int)
+    ord = WeightedOrdering(weights...)
+    (tr, _), t = timed(() -> groebner_learn(ideal, ordering = ord))
+    return Float64(reward(tr)), Float64(t)
+end
+
+function load_td3(env::Environment, args::Dict{String,Any})
     if isfile(CHECKPOINT_PATH)
         println("Checkpoint found. Loading saved model")
         actor = nothing
         critic = nothing
         if args["per"]
-            replay_buffer = PrioritizedReplayBuffer(CAPACITY, N_SAMPLES, ALPHA, BETA, BETA_INCREMENT, EPS)
-        else 
+            replay_buffer = PrioritizedReplayBuffer(
+                CAPACITY,
+                N_SAMPLES,
+                ALPHA,
+                BETA,
+                BETA_INCREMENT,
+                EPS,
+            )
+        else
             replay_buffer = CircularBuffer{Transition}(CAPACITY)
         end
         BSON.@load(CHECKPOINT_PATH, actor, critic)
@@ -781,7 +928,14 @@ function load_td3(env::Environment, args::Dict{String, Any})
         println("No checkpoint found. Training models from scratch")
         actor, critic = build_td3_model(env, args)
         if args["per"]
-            replay_buffer = PrioritizedReplayBuffer(CAPACITY, N_SAMPLES, ALPHA, BETA, BETA_INCREMENT, EPS)
+            replay_buffer = PrioritizedReplayBuffer(
+                CAPACITY,
+                N_SAMPLES,
+                ALPHA,
+                BETA,
+                BETA_INCREMENT,
+                EPS,
+            )
         else
             replay_buffer = CircularBuffer{Transition}(CAPACITY)
         end

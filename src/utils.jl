@@ -1,3 +1,4 @@
+using Random
 using StatsBase
 
 # Reference: https://github.com/JuliaPOMDP/DeepQLearning.jl/blob/master/src/prioritized_experience_replay.jl
@@ -84,12 +85,13 @@ function update_priorities!(
     buffer._priorities[indices] = priorities
 end
 
-function StatsBase.sample(buffer::PrioritizedReplayBuffer)
+function StatsBase.sample(rng::AbstractRNG, buffer::PrioritizedReplayBuffer)
     @assert buffer._curr_size >= buffer.batch_size "unable to return $(buffer.batch_size) samples from replay buffer of size $(buffer._curr_size)"
-    sample_indices = sample(
+    sample_indices = StatsBase.sample(
+        rng,
         1:buffer._curr_size,
         StatsBase.Weights(buffer._priorities[1:buffer._curr_size]),
-        buffer.batch_size,
+        buffer.batch_size;
         replace = false,
     )
     return get_batch(buffer, sample_indices)
@@ -109,21 +111,21 @@ end
 function pad_base_set(base_sets::Vector{Any})
     max_terms = NUM_TERMS
     num_vars = NUM_VARS
-    
+
     padding_monomial = fill(-1, num_vars) # -1 input for pad 
-    
+
     padded_sets = []
     for p in base_sets
         current_terms = length(p)
         num_to_pad = max_terms - current_terms
-        
+
         # Create a new padded polynomial by appending the padding monomial
         padded_poly = copy(p)
-        for _ in 1:num_to_pad
+        for _ = 1:num_to_pad
             push!(padded_poly, padding_monomial)
         end
         push!(padded_sets, padded_poly)
     end
-    
+
     return padded_sets, max_terms
 end
