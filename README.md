@@ -14,7 +14,7 @@ This repo contains code and data for our Learning Monomial Orders in Groebner Ba
 **Example:**
 
 ```bash
-julia main.jl --baseset=DEFAULT --LSTM=false --PER=true
+julia main.jl --baseset=DEFAULT --LSTM=false --PER=true --seed=0
 ```
 
 ### Flags for symbolic regression:
