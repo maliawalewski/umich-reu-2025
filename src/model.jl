@@ -898,10 +898,12 @@ function normalize_columns(M::AbstractMatrix)
     mapslices(x -> x / (norm(x) + 1e-8), M; dims = 1)
 end
 
-function eval_order_on_ideal(ideal, vars, weights_int)
-    weights = zip(vars, weights_int)
-    ord = WeightedOrdering(weights...)
-    (tr, _), t = timed(() -> groebner_learn(ideal, ordering = ord))
+function eval_order_on_ideal(ideal, vars, weights)
+    weights = Int.(round.(ACTION_SCALE * weights))
+    weights = max.(weights, 1)
+    w = zip(vars, weights)
+    order = WeightedOrdering(w...)
+    (tr, _), t = timed(() -> groebner_learn(ideal, ordering = order))
     return Float64(reward(tr)), Float64(t)
 end
 
