@@ -26,6 +26,11 @@ for d in (DATA_DIR, WEIGHTS_DIR, RESULTS_DIR, PLOTS_DIR)
     isdir(d) || mkpath(d)
 end
 
+# Groebner.jl determinism parameters (see: https://sumiya11.github.io/Groebner.jl/interface/#Groebner.groebner_learn)
+GROEBNER_TASKS = 1
+GROEBNER_MONOMS = :dense
+GROEBNER_HOMOGENIZE = :no
+
 # Logging parameters
 DEGLEX_CACHE_EVERY = 1 # how often to record DEGLEX Reward
 CSV_FLUSH_EVERY_EPISODES = 50 # how often to write to CSV of results
@@ -292,13 +297,18 @@ function train_td3!(
     env.monomial_matrix = monomial_matrix
     println("Monomial_matrix: ", env.monomial_matrix)
 
-    reset_env!(env)
-    env.ideal_batch = ideals[1:NUM_IDEALS]
-    precompute_baselines!(env; compute_deglex = true)
-
     ideal0 = ideals[1]
     timing_warmup_all!(actor, critic, env, ideal0, vars, rng_policy; do_backprop = true)
     println("Timing warmup complete.")
+
+    if args["lstm"]
+        Flux.reset!(actor.actor)
+        Flux.reset!(actor.actor_target)
+    end
+
+    reset_env!(env)
+    env.ideal_batch = ideals[1:NUM_IDEALS]
+    precompute_baselines!(env; compute_deglex = true)
 
     global_timestep = 0
 
@@ -809,22 +819,66 @@ function test_td3!(
     )
 
     ideal0 = ideals[1]
-    groebner_learn(ideal0, ordering = DegRevLex())
-    groebner_learn(ideal0, ordering = DegLex())
+    ideal_copy = deepcopy(ideal0)
+    groebner_learn(
+        ideal_copy;
+        ordering = DegRevLex(),
+        seed = env.groebner_seed,
+        tasks = GROEBNER_TASKS,
+        monoms = GROEBNER_MONOMS,
+        homogenize = GROEBNER_HOMOGENIZE,
+    )
+    ideal_copy = deepcopy(ideal0)
+    groebner_learn(
+        ideal_copy;
+        ordering = DegLex(),
+        seed = env.groebner_seed,
+        tasks = GROEBNER_TASKS,
+        monoms = GROEBNER_MONOMS,
+        homogenize = GROEBNER_HOMOGENIZE,
+    )
     ord0 = WeightedOrdering(zip(vars, Int.(1:length(vars)))...)
-    groebner_learn(ideal0, ordering = ord0)
+    ideal_copy = deepcopy(ideal0)
+    groebner_learn(
+        ideal_copy;
+        ordering = ord0,
+        seed = env.groebner_seed,
+        tasks = GROEBNER_TASKS,
+        monoms = GROEBNER_MONOMS,
+        homogenize = GROEBNER_HOMOGENIZE,
+    )
     println("Timing warmup complete.")
 
     for (idx, ideal) in enumerate(ideals)
         idx % 100 == 0 && println("testing on ideal: $idx")
 
-        ar, at = eval_order_on_ideal(ideal, vars, best_order)
+        ar, at = eval_order_on_ideal(ideal, vars, best_order, env.groebner_seed)
         push!(agent_rewards, ar)
 
-        (tr_d, _), td = timed(() -> groebner_learn(ideal, ordering = DegLex()))
+        ideal_copy = deepcopy(ideal)
+        (tr_d, _), td = timed(
+            () -> groebner_learn(
+                ideal_copy;
+                ordering = DegLex(),
+                seed = env.groebner_seed,
+                tasks = GROEBNER_TASKS,
+                monoms = GROEBNER_MONOMS,
+                homogenize = GROEBNER_HOMOGENIZE,
+            ),
+        )
         dr = Float64(reward(tr_d))
 
-        (tr_g, _), tg = timed(() -> groebner_learn(ideal, ordering = DegRevLex()))
+        ideal_copy = deepcopy(ideal)
+        (tr_g, _), tg = timed(
+            () -> groebner_learn(
+                ideal_copy;
+                ordering = DegRevLex(),
+                seed = env.groebner_seed,
+                tasks = GROEBNER_TASKS,
+                monoms = GROEBNER_MONOMS,
+                homogenize = GROEBNER_HOMOGENIZE,
+            ),
+        )
         gr = Float64(reward(tr_g))
 
         push!(deglex_rewards, dr)
@@ -921,12 +975,22 @@ function normalize_columns(M::AbstractMatrix)
     mapslices(x -> x / (norm(x) + 1e-8), M; dims = 1)
 end
 
-function eval_order_on_ideal(ideal, vars, weights)
+function eval_order_on_ideal(ideal, vars, weights, groebner_seed)
     weights = Int.(round.(ACTION_SCALE * weights))
     weights = max.(weights, 1)
     w = zip(vars, weights)
     order = WeightedOrdering(w...)
-    (tr, _), t = timed(() -> groebner_learn(ideal, ordering = order))
+    ideal_copy = deepcopy(ideal)
+    (tr, _), t = timed(
+        () -> groebner_learn(
+            ideal_copy;
+            ordering = order,
+            seed = groebner_seed,
+            tasks = GROEBNER_TASKS,
+            monoms = GROEBNER_MONOMS,
+            homogenize = GROEBNER_HOMOGENIZE,
+        ),
+    )
     return Float64(reward(tr)), Float64(t)
 end
 
@@ -940,11 +1004,36 @@ function timing_warmup_all!(
     rng_policy::AbstractRNG;
     do_backprop::Bool = true,
 )
-    groebner_learn(ideal0, ordering = DegRevLex())
-    groebner_learn(ideal0, ordering = DegLex())
+    ideal_copy = deepcopy(ideal0)
+    groebner_learn(
+        ideal_copy;
+        ordering = DegRevLex(),
+        seed = env.groebner_seed,
+        tasks = GROEBNER_TASKS,
+        monoms = GROEBNER_MONOMS,
+        homogenize = GROEBNER_HOMOGENIZE,
+    )
 
+    ideal_copy = deepcopy(ideal0)
+    groebner_learn(
+        ideal_copy;
+        ordering = DegLex(),
+        seed = env.groebner_seed,
+        tasks = GROEBNER_TASKS,
+        monoms = GROEBNER_MONOMS,
+        homogenize = GROEBNER_HOMOGENIZE,
+    )
+
+    ideal_copy = deepcopy(ideal0)
     ord0 = WeightedOrdering(zip(vars, Int.(1:length(vars)))...)
-    groebner_learn(ideal0, ordering = ord0)
+    groebner_learn(
+        ideal_copy;
+        ordering = ord0,
+        seed = env.groebner_seed,
+        tasks = GROEBNER_TASKS,
+        monoms = GROEBNER_MONOMS,
+        homogenize = GROEBNER_HOMOGENIZE,
+    )
 
     raw_matrix = vcat([collect(Iterators.flatten(row))' for row in env.monomial_matrix]...)
     matrix = normalize_columns(raw_matrix)

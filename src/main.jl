@@ -1,4 +1,10 @@
-using Groebner, AbstractAlgebra, Statistics, Dates, ArgParse, Random
+using Groebner
+using AbstractAlgebra
+using Statistics
+using Dates
+using ArgParse
+using Random
+using LinearAlgebra
 include("environment.jl")
 include("data.jl")
 include("utils.jl")
@@ -6,6 +12,8 @@ include("model.jl")
 include("results.jl")
 
 function main()
+    LinearAlgebra.BLAS.set_num_threads(1)
+
     s = ArgParseSettings()
     @add_arg_table s begin
         "--baseset", "--supportset"
@@ -40,7 +48,7 @@ function main()
     rng_buffer = MersenneTwister(seed + 3)
     rng_test = MersenneTwister(seed + 4)
     rng_env = MersenneTwister(seed + 5)
-
+    groebner_seed = seed + 6
 
     env = init_environment(
         args = args,
@@ -51,6 +59,7 @@ function main()
         default_num_terms = DEFAULT_NUM_TERMS,
         default_num_polys = DEFAULT_NUM_POLYS,
         rng = rng_env,
+        groebner_seed = groebner_seed,
     )
 
     actor_struct, critic_struct, replay_buffer = load_td3(env, args)

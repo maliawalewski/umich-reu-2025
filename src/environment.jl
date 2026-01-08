@@ -12,6 +12,7 @@ ACTION_SCALE = 1e3 # Scales action to integers
 
 mutable struct Environment{R<:AbstractRNG}
     rng::R
+    groebner_seed::Int
     num_vars::Int
     delta_bound::Float32
     state::Vector{Float32}
@@ -46,6 +47,7 @@ function init_environment(;
     default_num_terms = 5,
     default_num_polys = 3,
     rng::AbstractRNG = Random.default_rng(),
+    groebner_seed = 0,
 )
     @assert delta_bound >= 0.0f0 "Delta noise must be non-negative."
 
@@ -102,6 +104,7 @@ function init_environment(;
     state_i = init_state(rng, num_vars)
     return Environment(
         rng,
+        groebner_seed,
         num_vars,
         delta_bound,
         state_i,
@@ -184,8 +187,17 @@ function act!(env::Environment, raw_action::Vector{Float32}, use_baseline::Bool)
 
     for i = 1:length(env.ideal_batch)
         ideal = env.ideal_batch[i]
-
-        (tr, basis), t = timed(() -> groebner_learn(ideal, ordering = order))
+        ideal_copy = deepcopy(ideal)
+        (tr, basis), t = timed(
+            () -> groebner_learn(
+                ideal_copy;
+                ordering = order,
+                seed = env.groebner_seed,
+                tasks = GROEBNER_TASKS,
+                monoms = GROEBNER_MONOMS,
+                homogenize = GROEBNER_HOMOGENIZE,
+            ),
+        )
         push!(basis_vector, basis)
 
         curr_reward = reward(tr)
@@ -339,13 +351,32 @@ function precompute_baselines!(env::Environment; compute_deglex::Bool = true)
 
     for i = 1:n
         ideal = env.ideal_batch[i]
-
-        (tr_g, _), tg = timed(() -> groebner_learn(ideal, ordering = DegRevLex()))
+        ideal_copy = deepcopy(ideal)
+        (tr_g, _), tg = timed(
+            () -> groebner_learn(
+                ideal_copy;
+                ordering = DegRevLex(),
+                seed = env.groebner_seed,
+                tasks = GROEBNER_TASKS,
+                monoms = GROEBNER_MONOMS,
+                homogenize = GROEBNER_HOMOGENIZE,
+            ),
+        )
         env.grevlex_reward_cache[i] = reward(tr_g)
         env.grevlex_time_cache_s[i] = tg
 
         if compute_deglex
-            (tr_d, _), td = timed(() -> groebner_learn(ideal, ordering = DegLex()))
+            ideal_copy = deepcopy(ideal)
+            (tr_d, _), td = timed(
+                () -> groebner_learn(
+                    ideal_copy;
+                    ordering = DegLex(),
+                    seed = env.groebner_seed,
+                    tasks = GROEBNER_TASKS,
+                    monoms = GROEBNER_MONOMS,
+                    homogenize = GROEBNER_HOMOGENIZE,
+                ),
+            )
             env.deglex_reward_cache[i] = reward(tr_d)
             env.deglex_time_cache_s[i] = td
         end
