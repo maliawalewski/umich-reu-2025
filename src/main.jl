@@ -59,7 +59,7 @@ function main()
 
     test_td3!(actor_struct, critic_struct, env, args, rng_test, rng_env)
 
-    interpret_results()
+    interpret_results(args)
 
 end
 

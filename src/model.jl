@@ -22,14 +22,6 @@ WEIGHTS_DIR = joinpath(BASE_DIR, "weights")
 RESULTS_DIR = joinpath(BASE_DIR, "results")
 PLOTS_DIR = joinpath(BASE_DIR, "plots")
 
-BASE_SET_PATH = joinpath(DATA_DIR, "base_sets.bin")
-CHECKPOINT_PATH = joinpath(WEIGHTS_DIR, "td3_checkpoint.bson")
-
-ACTOR_PLOT_PATH = joinpath(PLOTS_DIR, "actor_plot.png")
-REWARD_PLOT_PATH = joinpath(PLOTS_DIR, "train_reward_plot.png")
-CRITICS_PLOT_PATH = joinpath(PLOTS_DIR, "critics_plot.png")
-REWARD_CMP_PATH = joinpath(PLOTS_DIR, "reward_comparison.png")
-
 for d in (DATA_DIR, WEIGHTS_DIR, RESULTS_DIR, PLOTS_DIR)
     isdir(d) || mkpath(d)
 end
@@ -219,11 +211,17 @@ function train_td3!(
     losses_1 = []
     losses_2 = []
 
-    run_tag = "td3_" * string(args["baseset"]) * "_seed" * string(args["seed"])
+    run_tag = "td3_run_" * "baseset_" * string(args["baseset"]) * "_seed_" * string(args["seed"])
 
     train_steps_csv = joinpath(RESULTS_DIR, run_tag * "_train_agent_metrics.csv")
     train_episode_csv = joinpath(RESULTS_DIR, run_tag * "_train_baseline_metrics.csv")
     train_updates_csv = joinpath(RESULTS_DIR, run_tag * "_train_losses.csv")
+
+    base_set_path = joinpath(DATA_DIR, run_tag * "_base_sets.bin")
+    checkpoint_path = joinpath(WEIGHTS_DIR, run_tag * "_td3_checkpoint.bson")
+    actor_plot_path = joinpath(PLOTS_DIR, run_tag * "_train_actor_loss_plot.png")
+    reward_plot_path = joinpath(PLOTS_DIR, run_tag * "_train_reward_plot.png")
+    critics_plot_path = joinpath(PLOTS_DIR, run_tag * "_train_critics_loss_plot.png")
 
     train_steps_df = DataFrame(
         global_timestep = Int[],
@@ -254,7 +252,7 @@ function train_td3!(
     current_actor_lr = initial_actor_lr
     current_critic_lr = initial_critic_lr
 
-    base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
+    base_sets = isfile(base_set_path) ? load_base_sets(base_set_path) : nothing
 
     if args["baseset"] == "N_SITE_PHOSPHORYLATION_BASE_SET"
         base_sets = N_SITE_PHOSPHORYLATION_BASE_SET
@@ -284,7 +282,7 @@ function train_td3!(
         num_terms = env.num_terms,
         max_attempts = MAX_ATTEMPTS,
         base_sets = base_sets,
-        base_set_path = BASE_SET_PATH,
+        base_set_path = base_set_path,
         should_save_base_sets = base_sets === nothing,
         use_n_site_phosphorylation_coeffs = base_sets === N_SITE_PHOSPHORYLATION_BASE_SET,
     )
@@ -530,8 +528,8 @@ function train_td3!(
         end
 
         if i % SAVE_WEIGHTS == 0
-            BSON.@save(CHECKPOINT_PATH, actor, critic)
-            println("Saved TD3 checkpoint to $CHECKPOINT_PATH at episode $i")
+            BSON.@save(checkpoint_path, actor, critic)
+            println("Saved TD3 checkpoint to $checkpoint_path at episode $i")
         end
 
         if i % CSV_FLUSH_EVERY_EPISODES == 0
@@ -595,7 +593,7 @@ function train_td3!(
         legend = :topleft,
     )
 
-    savefig(loss_plot, ACTOR_PLOT_PATH)
+    savefig(loss_plot, actor_plot_path)
 
     episodes2 = 1:length(rewards)
     reward_plot = scatter(
@@ -611,7 +609,7 @@ function train_td3!(
         legend = :bottomright,
     )
 
-    savefig(reward_plot, REWARD_PLOT_PATH)
+    savefig(reward_plot, reward_plot_path)
 
     episodes_critic1 = 1:length(losses_1)
     episodes_critic2 = 1:length(losses_2)
@@ -630,7 +628,7 @@ function train_td3!(
         title = ["Critic 1" "Critic 2"],
     )
 
-    savefig(critic_plot, CRITICS_PLOT_PATH)
+    savefig(critic_plot, critics_plot_path)
 
 
 
@@ -671,11 +669,17 @@ function train_td3!(
 end
 
 function test_td3!(actor::Actor, critic::Critics, env::Environment, args::Dict{String,Any}, rng_test::AbstractRNG, rng_env::AbstractRNG)
-
     rewards = []
     actions_taken = []
+    
+    run_tag = "td3_run_" * "baseset_" * string(args["baseset"]) * "_seed_" * string(args["seed"])
+    
+    base_set_path = joinpath(DATA_DIR, run_tag * "_base_sets.bin")
+    reward_cmp_path = joinpath(PLOTS_DIR, run_tag * "_train_test_comparison.png")
+    test_csv = joinpath(RESULTS_DIR, run_tag * "_test_metrics.csv")
+    order_csv = joinpath(RESULTS_DIR, run_tag * "_final_agent_weight_vector.csv")
 
-    base_sets = isfile(BASE_SET_PATH) ? load_base_sets(BASE_SET_PATH) : nothing
+    base_sets = isfile(base_set_path) ? load_base_sets(base_set_path) : nothing
 
     if args["baseset"] == "N_SITE_PHOSPHORYLATION_BASE_SET"
         base_sets = N_SITE_PHOSPHORYLATION_BASE_SET
@@ -705,7 +709,7 @@ function test_td3!(actor::Actor, critic::Critics, env::Environment, args::Dict{S
         num_terms = env.num_terms,
         max_attempts = MAX_ATTEMPTS,
         base_sets = base_sets,
-        base_set_path = BASE_SET_PATH,
+        base_set_path = base_set_path,
         should_save_base_sets = base_sets === nothing,
         use_n_site_phosphorylation_coeffs = base_sets === N_SITE_PHOSPHORYLATION_BASE_SET,
     )
@@ -775,11 +779,6 @@ function test_td3!(actor::Actor, critic::Critics, env::Environment, args::Dict{S
     deglex_rewards = []
     grevlex_rewards = []
 
-
-    run_tag = "td3_" * string(args["baseset"]) * "_seed" * string(get(args, "seed", 0))
-    test_csv = joinpath(RESULTS_DIR, run_tag * "_test_metrics.csv")
-    order_csv = joinpath(RESULTS_DIR, run_tag * "_final_agent_weight_vector.csv")
-
     test_df = DataFrame(
         idx = Int[],
         agent_reward = Float64[],
@@ -839,7 +838,7 @@ function test_td3!(actor::Actor, critic::Critics, env::Environment, args::Dict{S
         legend = :bottomleft,
     )
 
-    savefig(reward_plot, "test_reward_plot.png")
+    savefig(reward_plot, run_tag * "_test_reward_plot.png")
 
     reward_comparison = plot(
         episodes2,
@@ -883,7 +882,7 @@ function test_td3!(actor::Actor, critic::Critics, env::Environment, args::Dict{S
         legend = :bottomright,
     )
     # savefig("reward_comparison.pdf")
-    savefig(REWARD_CMP_PATH)
+    savefig(reward_cmp_path)
 
 
 end
@@ -908,7 +907,9 @@ function eval_order_on_ideal(ideal, vars, weights)
 end
 
 function load_td3(env::Environment, args::Dict{String,Any})
-    if isfile(CHECKPOINT_PATH)
+    run_tag = "td3_run_" * "baseset_" * string(args["baseset"]) * "_seed_" * string(args["seed"])
+    checkpoint_path = joinpath(WEIGHTS_DIR, run_tag * "_td3_checkpoint.bson")
+    if isfile(checkpoint_path)
         println("Checkpoint found. Loading saved model")
         actor = nothing
         critic = nothing
@@ -924,7 +925,7 @@ function load_td3(env::Environment, args::Dict{String,Any})
         else
             replay_buffer = CircularBuffer{Transition}(CAPACITY)
         end
-        BSON.@load(CHECKPOINT_PATH, actor, critic)
+        BSON.@load(checkpoint_path, actor, critic)
         return actor, critic, replay_buffer
     else
         println("No checkpoint found. Training models from scratch")

@@ -20,16 +20,18 @@ function compute_stats(agent_rewards, baseline_rewards, name)
     println()
 end
 
-function interpret_results()
+function interpret_results(args::Dict{String, Any})
     if !@isdefined(RESULTS_DIR)
         BASE_DIR = @__DIR__
         RESULTS_DIR = joinpath(BASE_DIR, "results")
     end
 
-    best_order = deserialize(joinpath(RESULTS_DIR, "agent_order.bin"))
-    agent_rewards = deserialize(joinpath(RESULTS_DIR, "agent_rewards.bin"))
-    deglex_rewards = deserialize(joinpath(RESULTS_DIR, "deglex_rewards.bin"))
-    grevlex_rewards = deserialize(joinpath(RESULTS_DIR, "grevlex_rewards.bin"))
+    run_tag = "td3_run_" * "baseset_" * string(args["baseset"]) * "_seed_" * string(args["seed"])
+
+    best_order = deserialize(joinpath(RESULTS_DIR, run_tag * "_final_agent_order.bin"))
+    agent_rewards = deserialize(joinpath(RESULTS_DIR, run_tag * "_test_agent_rewards.bin"))
+    deglex_rewards = deserialize(joinpath(RESULTS_DIR, run_tag * "_test_deglex_rewards.bin"))
+    grevlex_rewards = deserialize(joinpath(RESULTS_DIR, run_tag * "_test_grevlex_rewards.bin"))
 
     println("Agent order: $best_order")
 
