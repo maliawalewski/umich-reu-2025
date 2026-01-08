@@ -1,6 +1,6 @@
-using Oscar 
+using Oscar
 
-R, (x, y) = polynomial_ring(QQ, [:x, :y]; internal_ordering=:lex)
+R, (x, y) = polynomial_ring(QQ, [:x, :y]; internal_ordering = :lex)
 f = x^2
 f2 = x^3 - 2x*y
 f1 = x*y^2-2y^2+x
@@ -13,9 +13,9 @@ function division_alg(f::QQMPolyRingElem, F::Vararg{QQMPolyRingElem})
 
     while p != 0
         i = 1
-        division_occurred = false 
+        division_occurred = false
 
-        while i <= length(F) && division_occurred == false 
+        while i <= length(F) && division_occurred == false
             mon_p = leading_monomial(p)
             coeff_p = leading_coefficient(p)
             mon_fi = leading_monomial(F[i])
@@ -32,7 +32,7 @@ function division_alg(f::QQMPolyRingElem, F::Vararg{QQMPolyRingElem})
             end
         end
 
-        if division_occurred == false 
+        if division_occurred == false
             r += leading_term(p)
             p -= leading_term(p)
         end

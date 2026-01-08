@@ -2,7 +2,7 @@ using AbstractAlgebra, Nemo
 
 A = AbstractAlgebra.Generic.MPoly{CalciumFieldElem}
 CC = CalciumField()
-R, (x, y, z) = polynomial_ring(CC, ["x", "y", "z"], internal_ordering=:lex)
+R, (x, y, z) = polynomial_ring(CC, ["x", "y", "z"], internal_ordering = :lex)
 
 f1 = x^2 + y^2 + z^2 - 1
 f2 = x^2 + z^2 - y
@@ -17,10 +17,10 @@ function buchberger(F::Vector{A})
     while changed
         changed = false
         G_prime = copy(G)
-        
+
         println("In the loop")
-        for i in 1:length(G_prime)
-            for j in i+1:length(G_prime)
+        for i = 1:length(G_prime)
+            for j = (i+1):length(G_prime)
                 if G_prime[i] != G_prime[j]
                     S = S_polynomial(G_prime[i], G_prime[j])
                     r = division_alg(S, G_prime)[2]
@@ -29,13 +29,13 @@ function buchberger(F::Vector{A})
                         changed = true
                         println("Added r: ", r)
                         println("Size of G: ", length(G))
-                    end 
+                    end
                 end
             end
         end
     end
     return G
-end 
+end
 
 function division_alg(f::A, F::Vector{A})
     r = R(0)
@@ -44,9 +44,9 @@ function division_alg(f::A, F::Vector{A})
 
     while p != 0
         i = 1
-        division_occurred = false 
+        division_occurred = false
 
-        while i <= length(F) && division_occurred == false 
+        while i <= length(F) && division_occurred == false
             mon_p = leading_monomial(p)
             coeff_p = leading_coefficient(p)
             mon_fi = leading_monomial(F[i])
@@ -63,7 +63,7 @@ function division_alg(f::A, F::Vector{A})
             end
         end
 
-        if division_occurred == false 
+        if division_occurred == false
             r += leading_term(p)
             p -= leading_term(p)
         end
@@ -92,16 +92,16 @@ function reduced_basis(G::Vector{A})
 
     reduced_G = []
     #second condition
-    for i in 1:length(monic_G)
+    for i = 1:length(monic_G)
         p = monic_G[i]
-        G_others = [monic_G[j] for j in 1:length(monic_G) if j != i] # G \ {p}
+        G_others = [monic_G[j] for j = 1:length(monic_G) if j != i] # G \ {p}
 
         _, r = division_alg(p, G_others)
 
-        if r != 0 
+        if r != 0
             push!(reduced_G, r)
         end
-    end 
+    end
     return reduced_G
 end
 
@@ -114,5 +114,3 @@ basis = buchberger(F)
 for b in basis
     println("Basis element: ", b)
 end
-
-

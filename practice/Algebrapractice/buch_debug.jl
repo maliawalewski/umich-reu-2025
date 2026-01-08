@@ -1,8 +1,8 @@
-using AbstractAlgebra, Nemo, Calcium 
+using AbstractAlgebra, Nemo, Calcium
 
 A = AbstractAlgebra.Generic.MPoly{CalciumFieldElem}
 CC = CalciumField()
-R, (x, y, z) = polynomial_ring(CC, ["x", "y", "z"], internal_ordering=:lex)
+R, (x, y, z) = polynomial_ring(CC, ["x", "y", "z"], internal_ordering = :lex)
 
 f1 = x^2 + y^2 + z^2 - 1
 f2 = x^2 + z^2 - y
@@ -33,7 +33,9 @@ function division_alg(f::A, F::Vector{A})
 
         while i <= length(F) && !division_occurred
             # Prevent errors if p became numerically zero due to a previous step but loop condition didn't catch it (unlikely but safe)
-            if is_numerically_zero(p) break end
+            if is_numerically_zero(p)
+                break
+            end
 
             mon_p = leading_monomial(p)
             coeff_p = leading_coefficient(p)
@@ -74,11 +76,13 @@ Buchberger's algorithm modified to use numerical zero checking and a pair list.
 function buchberger(F_input::Vector{A})
     # Filter out any initial polynomials that are numerically zero
     G = [p for p in F_input if !is_numerically_zero(p)]
-    if isempty(G) return A[] end # Return empty list of type A
+    if isempty(G)
+        return A[]
+    end # Return empty list of type A
 
-    pairs_to_process = Tuple{A, A}[] # Initialize list for pairs of polynomials
+    pairs_to_process = Tuple{A,A}[] # Initialize list for pairs of polynomials
     for i = 1:length(G)
-        for j = i+1:length(G)
+        for j = (i+1):length(G)
             push!(pairs_to_process, (G[i], G[j]))
         end
     end
@@ -96,18 +100,18 @@ function buchberger(F_input::Vector{A})
             continue
         end
 
-        _ , r = division_alg(S, G) # G is the current basis
+        _, r = division_alg(S, G) # G is the current basis
 
         if !is_numerically_zero(r) # Critical check for the remainder
             # println("Non-zero remainder r: ", r) # Optional debug
-            
+
             # Add new pairs involving the new basis element r to the END of the list
             for g_existing in G
                 push!(pairs_to_process, (g_existing, r))
             end
             push!(G, r) # Add r to the basis G
             # println("Added to G. New size: ", length(G)) # Optional debug
-        # else
+            # else
             # println("Remainder r is numerically zero.") # Optional debug
         end
     end
@@ -138,16 +142,16 @@ function reduced_basis(G::Vector{A})
 
     reduced_G = []
     #second condition
-    for i in 1:length(monic_G)
+    for i = 1:length(monic_G)
         p = monic_G[i]
-        G_others = [monic_G[j] for j in 1:length(monic_G) if j != i] # G \ {p}
+        G_others = [monic_G[j] for j = 1:length(monic_G) if j != i] # G \ {p}
 
         _, r = division_alg(p, G_others)
 
-        if r != 0 
+        if r != 0
             push!(reduced_G, r)
         end
-    end 
+    end
     return reduced_G
 end
 
@@ -160,5 +164,3 @@ basis = buchberger(F)
 for b in basis
     println("Basis element: ", b)
 end
-
-

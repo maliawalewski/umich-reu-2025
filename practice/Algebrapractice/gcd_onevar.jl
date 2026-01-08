@@ -1,7 +1,7 @@
 using Polynomials
 
-f = Polynomial([2, 3, 1])  
-g = Polynomial([2,1]) 
+f = Polynomial([2, 3, 1])
+g = Polynomial([2, 1])
 
 function gcd(f::Polynomial, g::Polynomial)
     h = f
@@ -14,7 +14,7 @@ function gcd(f::Polynomial, g::Polynomial)
     end
 
     return h
-    
+
 end
 
 println("gcd(f, g) = ", gcd(f, g))

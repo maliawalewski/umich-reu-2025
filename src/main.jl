@@ -35,11 +35,11 @@ function main()
     seed = args["seed"]
     Random.seed!(seed)
 
-    rng_data   = MersenneTwister(seed + 1)
+    rng_data = MersenneTwister(seed + 1)
     rng_policy = MersenneTwister(seed + 2)
     rng_buffer = MersenneTwister(seed + 3)
-    rng_test   = MersenneTwister(seed + 4)
-    rng_env   = MersenneTwister(seed + 5)
+    rng_test = MersenneTwister(seed + 4)
+    rng_env = MersenneTwister(seed + 5)
 
 
     env = init_environment(
@@ -55,7 +55,19 @@ function main()
 
     actor_struct, critic_struct, replay_buffer = load_td3(env, args)
 
-    train_td3!(actor_struct, critic_struct, env, replay_buffer, ACTOR_LR, CRITIC_LR, args, rng_data, rng_policy, rng_buffer, rng_env)
+    train_td3!(
+        actor_struct,
+        critic_struct,
+        env,
+        replay_buffer,
+        ACTOR_LR,
+        CRITIC_LR,
+        args,
+        rng_data,
+        rng_policy,
+        rng_buffer,
+        rng_env,
+    )
 
     test_td3!(actor_struct, critic_struct, env, args, rng_test, rng_env)
 

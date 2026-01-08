@@ -41,7 +41,8 @@ function old_generate_ideal(;
                             @assert c_attempts <= max_attempts
                         end
 
-                        monomial = coeff * prod(vars[i]^exponents[i] for i = 1:num_variables)
+                        monomial =
+                            coeff * prod(vars[i]^exponents[i] for i = 1:num_variables)
                         push!(terms, monomial)
                         break
                     end

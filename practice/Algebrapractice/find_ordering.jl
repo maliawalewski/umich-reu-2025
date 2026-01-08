@@ -63,7 +63,7 @@ BASE_SET = Vector{Any}([
         [0, 2, 3],
     ],
 ])
- 
+
 # relative pose paper
 BASE_SET = Vector{Any}([
     [
@@ -420,26 +420,7 @@ BASE_SET = Vector{Any}([
 
 
 BASE_SET = Vector{Any}([
-    [ 
-        [1, 0], 
-        [0, 1], 
-        [0, 0],
-        [1, 1], 
-        [1, 2],  
-        [1, 3],  
-        [1, 4],   
-        [1, 5],  
-        [1, 6], 
-        [1, 7],
-        [1, 8],  
-        [1, 9],  
-        [1,10], 
-        [1,11], 
-        [1,12],  
-        [1,13],
-        [1,14]    
-    ],
-    [ 
+    [
         [1, 0],
         [0, 1],
         [0, 0],
@@ -452,12 +433,31 @@ BASE_SET = Vector{Any}([
         [1, 7],
         [1, 8],
         [1, 9],
-        [1,10],
-        [1,11],
-        [1,12],
-        [1,13],
-        [1,14]
-    ]
+        [1, 10],
+        [1, 11],
+        [1, 12],
+        [1, 13],
+        [1, 14],
+    ],
+    [
+        [1, 0],
+        [0, 1],
+        [0, 0],
+        [1, 1],
+        [1, 2],
+        [1, 3],
+        [1, 4],
+        [1, 5],
+        [1, 6],
+        [1, 7],
+        [1, 8],
+        [1, 9],
+        [1, 10],
+        [1, 11],
+        [1, 12],
+        [1, 13],
+        [1, 14],
+    ],
 ])
 
 function new_generate_ideal(;
@@ -631,7 +631,7 @@ ideals, vars, monomial_matrix = new_generate_data(
 
 
 reward_map = Dict{NTuple{3,Int},Float64}()
-    
+
 baseline_trace, _ = groebner_learn(ideals[1], ordering = DegRevLex())
 println("grevlex: $(reward(baseline_trace))")
 

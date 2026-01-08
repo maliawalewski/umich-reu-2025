@@ -211,7 +211,8 @@ function train_td3!(
     losses_1 = []
     losses_2 = []
 
-    run_tag = "td3_run_" * "baseset_" * string(args["baseset"]) * "_seed_" * string(args["seed"])
+    run_tag =
+        "td3_run_" * "baseset_" * string(args["baseset"]) * "_seed_" * string(args["seed"])
 
     train_steps_csv = joinpath(RESULTS_DIR, run_tag * "_train_agent_metrics.csv")
     train_episode_csv = joinpath(RESULTS_DIR, run_tag * "_train_baseline_metrics.csv")
@@ -290,6 +291,14 @@ function train_td3!(
     env.variables = vars
     env.monomial_matrix = monomial_matrix
     println("Monomial_matrix: ", env.monomial_matrix)
+
+    reset_env!(env)
+    env.ideal_batch = ideals[1:NUM_IDEALS]
+    precompute_baselines!(env; compute_deglex = true)
+
+    ideal0 = ideals[1]
+    timing_warmup_all!(actor, critic, env, ideal0, vars, rng_policy; do_backprop = true)
+    println("Timing warmup complete.")
 
     global_timestep = 0
 
@@ -668,12 +677,20 @@ function train_td3!(
 
 end
 
-function test_td3!(actor::Actor, critic::Critics, env::Environment, args::Dict{String,Any}, rng_test::AbstractRNG, rng_env::AbstractRNG)
+function test_td3!(
+    actor::Actor,
+    critic::Critics,
+    env::Environment,
+    args::Dict{String,Any},
+    rng_test::AbstractRNG,
+    rng_env::AbstractRNG,
+)
     rewards = []
     actions_taken = []
-    
-    run_tag = "td3_run_" * "baseset_" * string(args["baseset"]) * "_seed_" * string(args["seed"])
-    
+
+    run_tag =
+        "td3_run_" * "baseset_" * string(args["baseset"]) * "_seed_" * string(args["seed"])
+
     base_set_path = joinpath(DATA_DIR, run_tag * "_base_sets.bin")
     reward_cmp_path = joinpath(PLOTS_DIR, run_tag * "_train_test_comparison.png")
     test_csv = joinpath(RESULTS_DIR, run_tag * "_test_metrics.csv")
@@ -791,6 +808,13 @@ function test_td3!(actor::Actor, critic::Critics, env::Environment, args::Dict{S
         agent_time_ratio_vs_grevlex = Float64[],
     )
 
+    ideal0 = ideals[1]
+    groebner_learn(ideal0, ordering = DegRevLex())
+    groebner_learn(ideal0, ordering = DegLex())
+    ord0 = WeightedOrdering(zip(vars, Int.(1:length(vars)))...)
+    groebner_learn(ideal0, ordering = ord0)
+    println("Timing warmup complete.")
+
     for (idx, ideal) in enumerate(ideals)
         idx % 100 == 0 && println("testing on ideal: $idx")
 
@@ -906,8 +930,73 @@ function eval_order_on_ideal(ideal, vars, weights)
     return Float64(reward(tr)), Float64(t)
 end
 
+
+function timing_warmup_all!(
+    actor::Actor,
+    critic::Critics,
+    env::Environment,
+    ideal0,
+    vars,
+    rng_policy::AbstractRNG;
+    do_backprop::Bool = true,
+)
+    groebner_learn(ideal0, ordering = DegRevLex())
+    groebner_learn(ideal0, ordering = DegLex())
+
+    ord0 = WeightedOrdering(zip(vars, Int.(1:length(vars)))...)
+    groebner_learn(ideal0, ordering = ord0)
+
+    raw_matrix = vcat([collect(Iterators.flatten(row))' for row in env.monomial_matrix]...)
+    matrix = normalize_columns(raw_matrix)
+
+    s = Float32.(state(env))
+    padded_s = vcat(s, zeros(Float32, env.num_polys - env.num_vars))
+    s_input = hcat(matrix, padded_s)
+    s_input = reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_polys, 1))
+    s_input = Float32.(s_input)
+
+    _ = actor.actor(s_input)
+    _ = actor.actor_target(s_input)
+
+    N = 4
+    s_input_batch = repeat(s_input, 1, N)
+    a = Float32.(actor.actor(s_input))          # (num_vars, 1)
+    a_batch = repeat(a, 1, N)                   # (num_vars, N)
+
+    _ = critic.critic_1(vcat(s_input_batch, a_batch))
+    _ = critic.critic_2(vcat(s_input_batch, a_batch))
+    _ = critic.critic_1_target(vcat(s_input_batch, a_batch))
+    _ = critic.critic_2_target(vcat(s_input_batch, a_batch))
+
+    if do_backprop
+        y = randn(rng_policy, Float32, 1, N)
+
+        loss1, back1 = Flux.withgradient(critic.critic_1) do model
+            pred = model(Float32.(vcat(s_input_batch, a_batch)))
+            Flux.mse(pred, y)
+        end
+        Flux.update!(critic.critic_1_opt_state, critic.critic_1, back1[1])
+
+        loss2, back2 = Flux.withgradient(critic.critic_2) do model
+            pred = model(Float32.(vcat(s_input_batch, a_batch)))
+            Flux.mse(pred, y)
+        end
+        Flux.update!(critic.critic_2_opt_state, critic.critic_2, back2[1])
+
+        actor_loss, backa = Flux.withgradient(actor.actor) do model
+            a_pred = model(Float32.(s_input_batch))
+            q_val = critic.critic_1(Float32.(vcat(s_input_batch, a_pred)))
+            -mean(q_val)
+        end
+        Flux.update!(actor.actor_opt_state, actor.actor, backa[1])
+    end
+
+    return nothing
+end
+
 function load_td3(env::Environment, args::Dict{String,Any})
-    run_tag = "td3_run_" * "baseset_" * string(args["baseset"]) * "_seed_" * string(args["seed"])
+    run_tag =
+        "td3_run_" * "baseset_" * string(args["baseset"]) * "_seed_" * string(args["seed"])
     checkpoint_path = joinpath(WEIGHTS_DIR, run_tag * "_td3_checkpoint.bson")
     if isfile(checkpoint_path)
         println("Checkpoint found. Loading saved model")
