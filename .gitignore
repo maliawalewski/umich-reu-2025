@@ -13,4 +13,5 @@
 /src/extra/RewardVsTime/reward_vs_time.csv
 /src/extra/RewardVsTime/*.bin
 /src/extra/RewardVsTime/reward_vs_time.pdf
+/src/extra/RewardVsTime/figures/
 /src/extra/MakePlots/figures/
