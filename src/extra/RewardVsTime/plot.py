@@ -35,21 +35,30 @@ def rankdata(a):
 def spearmanr(x, y):
     return pearsonr(rankdata(x), rankdata(y))
 
-
 def rcparams():
     plt.rcParams.update({
+        "font.family": "serif",
+        "font.serif": ["Times New Roman", "Times", "Nimbus Roman No9 L", "DejaVu Serif"],
+        "mathtext.fontset": "stix",
+
         "font.size": 8,
-        "axes.labelsize": 9,
-        "axes.titlesize": 9,
+        "axes.labelsize": 8,
+        "axes.titlesize": 8,
         "xtick.labelsize": 8,
         "ytick.labelsize": 8,
+
+        "text.color": "black",
+        "axes.labelcolor": "black",
+        "xtick.color": "black",
+        "ytick.color": "black",
+        "axes.edgecolor": "black",
+
         "axes.linewidth": 0.8,
         "lines.linewidth": 1.2,
         "pdf.fonttype": 42,
         "ps.fonttype": 42,
         "savefig.dpi": 300,
     })
-
 
 def clean_df(df):
     df = df.replace([np.inf, -np.inf], np.nan).dropna(
@@ -164,8 +173,8 @@ def main():
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
-    main_path = outdir / "reward_delta_vs_time_main_simple.pdf"
-    app_path = outdir / "reward_vs_time_appendix_simple.pdf"
+    main_path = outdir / "reward_delta_vs_time_grevlex_baseline.pdf"
+    app_path = outdir / "reward_vs_time_appendix_no_baseline.pdf"
 
     rp, rs, n = make_main(df, main_path, add_trend=args.trend, use_logx=args.logx)
     arp, ars, an, baseline = make_appendix(df, app_path, add_trend=args.trend, use_logx=args.logx)

@@ -5,8 +5,14 @@ include("environment.jl")
 
 function compute_stats(agent_rewards, baseline_rewards, name)
     total = length(agent_rewards)
+
     wins = [a > b for (a, b) in zip(agent_rewards, baseline_rewards)]
+    losses = [a < b for (a, b) in zip(agent_rewards, baseline_rewards)]
+    ties = [a == b for (a, b) in zip(agent_rewards, baseline_rewards)]
+
     win_pct = 100 * count(wins) / total
+    loss_pct = 100 * count(losses) / total
+    tie_pct = 100 * count(ties) / total
 
     improvements = [
         (a - b) / abs(b + 1e-8) * 100 for
@@ -14,9 +20,22 @@ function compute_stats(agent_rewards, baseline_rewards, name)
     ]
     avg_improvement = isempty(improvements) ? 0.0 : mean(improvements)
 
+    degradations = [
+        (b - a) / abs(b + 1e-8) * 100 for
+        (a, b) in zip(agent_rewards, baseline_rewards) if a < b
+    ]
+    avg_degradation = isempty(degradations) ? 0.0 : mean(degradations)
+
     println("Agent vs $name:")
-    println("Percent of time agent wins: $(round(win_pct, digits=2))%")
-    println("Average improvement percent: $(round(avg_improvement, digits=2))%")
+    println("Percent of time agent wins:  $(round(win_pct, digits=2))%")
+    println("Percent of time agent loses: $(round(loss_pct, digits=2))%")
+    println("Percent of time tie:         $(round(tie_pct, digits=2))%")
+    println(
+        "Average improvement percent (wins only):  $(round(avg_improvement, digits=2))%",
+    )
+    println(
+        "Average degradation percent (losses only): $(round(avg_degradation, digits=2))%",
+    )
     println()
 end
 

@@ -916,7 +916,7 @@ function test_td3!(
         legend = :bottomleft,
     )
 
-    savefig(reward_plot, run_tag * "_test_reward_plot.png")
+    savefig(reward_plot, joinpath(PLOTS_DIR, run_tag * "_test_reward_plot.png"))
 
     reward_comparison = plot(
         episodes2,
