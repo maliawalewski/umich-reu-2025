@@ -6,6 +6,7 @@ from typing import Dict
 import pandas as pd
 
 from table_a_reward import compute_table_a_reward, print_table_a_reward
+from weights_table import weights_table_from_dfs
 
 # Example:
 #   python main.py --baseset TRIANGULATION_BASE_SET
@@ -151,6 +152,8 @@ def main():
         include_baseline_sanity=args.include_baseline_sanity,
         show_per_seed=args.show_per_seed,
     )
+
+    weights_table_from_dfs(dfs_by_seed, action_scale=1e3, show_int=True)
 
     return dfs_by_seed
 
