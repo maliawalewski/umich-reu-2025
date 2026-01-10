@@ -63,7 +63,9 @@ def scan_results(results_dir: Path, baseset: str) -> Dict[int, Dict[str, Path]]:
     return grouped
 
 
-def load_grouped(grouped_paths: Dict[int, Dict[str, Path]]) -> Dict[int, Dict[str, pd.DataFrame]]:
+def load_grouped(
+    grouped_paths: Dict[int, Dict[str, Path]],
+) -> Dict[int, Dict[str, pd.DataFrame]]:
     out: Dict[int, Dict[str, pd.DataFrame]] = {}
     for seed, kinds in sorted(grouped_paths.items()):
         out[seed] = {}
@@ -74,7 +76,9 @@ def load_grouped(grouped_paths: Dict[int, Dict[str, Path]]) -> Dict[int, Dict[st
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--baseset", type=str, required=True, help="example: TRIANGULATION_BASE_SET")
+    ap.add_argument(
+        "--baseset", type=str, required=True, help="example: TRIANGULATION_BASE_SET"
+    )
     ap.add_argument(
         "--src",
         type=str,
@@ -108,7 +112,9 @@ def main():
 
     grouped_paths = scan_results(results_dir, args.baseset)
     if not grouped_paths:
-        raise FileNotFoundError(f"No CSVs found for baseset={args.baseset} in {results_dir}")
+        raise FileNotFoundError(
+            f"No CSVs found for baseset={args.baseset} in {results_dir}"
+        )
 
     expected_kinds = list(KIND_SUFFIXES.keys())
     seeds = sorted(grouped_paths.keys())
@@ -135,7 +141,9 @@ def main():
             print()
 
     if args.require_all_kinds and missing_any:
-        raise RuntimeError("Some seeds are missing one or more expected CSV kinds (see report above).")
+        raise RuntimeError(
+            "Some seeds are missing one or more expected CSV kinds (see report above)."
+        )
 
     dfs_by_seed = load_grouped(grouped_paths)
 
@@ -160,4 +168,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

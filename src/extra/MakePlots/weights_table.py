@@ -8,7 +8,9 @@ import pandas as pd
 ACTION_SCALE_DEFAULT = 1e3
 
 
-def _to_action_int(weights: np.ndarray, action_scale: float = ACTION_SCALE_DEFAULT) -> np.ndarray:
+def _to_action_int(
+    weights: np.ndarray, action_scale: float = ACTION_SCALE_DEFAULT
+) -> np.ndarray:
     w = np.asarray(weights, dtype=float)
     a = np.round(action_scale * w).astype(int)
     a = np.maximum(a, 1)
@@ -30,7 +32,9 @@ def compute_weights_table(
         required = {"var", "weight"}
         missing = required - set(df.columns)
         if missing:
-            raise ValueError(f"Seed {seed} final_agent_weight_vector missing columns: {missing}")
+            raise ValueError(
+                f"Seed {seed} final_agent_weight_vector missing columns: {missing}"
+            )
 
         df = df.replace([np.inf, -np.inf], np.nan).dropna(subset=["var", "weight"])
 
@@ -54,6 +58,7 @@ def compute_weights_table(
 
     return {"seeds": seeds, "rows": rows, "action_scale": float(action_scale)}
 
+
 def _fmt_vec(v: List[float], fmt: str) -> str:
     return "[" + ", ".join(fmt.format(x) for x in v) + "]"
 
@@ -66,7 +71,9 @@ def print_weights_table(weights_tbl: Dict[str, Any], show_int: bool = True) -> N
     print("----Final agent weight vectors----")
     print(f"Seeds used: {seeds}")
     if show_int:
-        print(f"Columns: seed | vars | weights_float | weights_int (scale={int(action_scale)})")
+        print(
+            f"Columns: seed | vars | weights_float | weights_int (scale={int(action_scale)})"
+        )
     else:
         print("Columns: seed | vars | weights_float")
     print()
@@ -92,4 +99,3 @@ def weights_table_from_dfs(
     tbl = compute_weights_table(dfs_by_seed, action_scale=action_scale)
     print_weights_table(tbl, show_int=show_int)
     return tbl
-
