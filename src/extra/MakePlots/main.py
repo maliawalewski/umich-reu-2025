@@ -1,11 +1,16 @@
 import argparse
 import re
 from pathlib import Path
-from typing import Dict, Any, List, Tuple
+from typing import Dict
+
 import pandas as pd
 
-# Example run: python main.py --baseset TRIANGULATION_BASE_SET
+from table_a_reward import compute_table_a_reward, print_table_a_reward
 
+# Example:
+#   python main.py --baseset TRIANGULATION_BASE_SET
+#   python main.py --baseset TRIANGULATION_BASE_SET --show-per-seed
+#   python main.py --baseset TRIANGULATION_BASE_SET --include-baseline-sanity
 
 KIND_SUFFIXES = {
     "final_agent_weight_vector": "_final_agent_weight_vector.csv",
@@ -33,7 +38,6 @@ def scan_results(results_dir: Path, baseset: str) -> Dict[int, Dict[str, Path]]:
         raise FileNotFoundError(f"results_dir does not exist: {results_dir}")
 
     grouped: Dict[int, Dict[str, Path]] = {}
-
     for p in results_dir.glob("td3_run_baseset_*_seed_*_*.csv"):
         m = FILENAME_RE.match(p.name)
         if not m:
@@ -43,7 +47,6 @@ def scan_results(results_dir: Path, baseset: str) -> Dict[int, Dict[str, Path]]:
 
         seed = int(m.group("seed"))
         kind = m.group("kind")
-
         if kind not in KIND_SUFFIXES:
             continue
 
@@ -59,9 +62,7 @@ def scan_results(results_dir: Path, baseset: str) -> Dict[int, Dict[str, Path]]:
     return grouped
 
 
-def load_grouped(
-    grouped_paths: Dict[int, Dict[str, Path]],
-) -> Dict[int, Dict[str, pd.DataFrame]]:
+def load_grouped(grouped_paths: Dict[int, Dict[str, Path]]) -> Dict[int, Dict[str, pd.DataFrame]]:
     out: Dict[int, Dict[str, pd.DataFrame]] = {}
     for seed, kinds in sorted(grouped_paths.items()):
         out[seed] = {}
@@ -72,9 +73,7 @@ def load_grouped(
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument(
-        "--baseset", type=str, required=True, help="example: TRIANGULATION_BASE_SET"
-    )
+    ap.add_argument("--baseset", type=str, required=True, help="example: TRIANGULATION_BASE_SET")
     ap.add_argument(
         "--src",
         type=str,
@@ -86,6 +85,21 @@ def main():
         action="store_true",
         help="If set, error unless every seed has all expected CSV kinds.",
     )
+    ap.add_argument(
+        "--quiet-scan",
+        action="store_true",
+        help="If set, suppress per-seed scan output (still prints Table A).",
+    )
+    ap.add_argument(
+        "--include-baseline-sanity",
+        action="store_true",
+        help="If set, also print DegLex vs GrevLex sanity-check block.",
+    )
+    ap.add_argument(
+        "--show-per-seed",
+        action="store_true",
+        help="If set, print per-seed breakdown after aggregated metrics.",
+    )
     args = ap.parse_args()
 
     src_dir = Path(args.src).resolve() if args.src else get_src_dir()
@@ -93,13 +107,11 @@ def main():
 
     grouped_paths = scan_results(results_dir, args.baseset)
     if not grouped_paths:
-        raise FileNotFoundError(
-            f"No CSVs found for baseset={args.baseset} in {results_dir}"
-        )
+        raise FileNotFoundError(f"No CSVs found for baseset={args.baseset} in {results_dir}")
 
     expected_kinds = list(KIND_SUFFIXES.keys())
-
     seeds = sorted(grouped_paths.keys())
+
     print(f"src_dir     = {src_dir}")
     print(f"results_dir = {results_dir}")
     print(f"baseset     = {args.baseset}")
@@ -107,34 +119,42 @@ def main():
     print()
 
     missing_any = False
-    for seed in seeds:
-        kinds = grouped_paths[seed]
-        missing = [k for k in expected_kinds if k not in kinds]
-        present = [k for k in expected_kinds if k in kinds]
-        print(f"[seed {seed}]")
-        print(f"  present: {present}")
-        if missing:
-            missing_any = True
-            print(f"  missing: {missing}")
-        for k in present:
-            print(f"    - {k}: {kinds[k].name}")
-        print()
+    if not args.quiet_scan:
+        for seed in seeds:
+            kinds = grouped_paths[seed]
+            missing = [k for k in expected_kinds if k not in kinds]
+            present = [k for k in expected_kinds if k in kinds]
+            print(f"[seed {seed}]")
+            print(f"  present: {present}")
+            if missing:
+                missing_any = True
+                print(f"  missing: {missing}")
+            for k in present:
+                print(f"    - {k}: {kinds[k].name}")
+            print()
 
     if args.require_all_kinds and missing_any:
-        raise RuntimeError(
-            "Some seeds are missing one or more expected CSV kinds (see report above)."
-        )
+        raise RuntimeError("Some seeds are missing one or more expected CSV kinds (see report above).")
 
     dfs_by_seed = load_grouped(grouped_paths)
 
-    for seed in seeds:
-        print(f"----Loaded seed {seed}----")
-        for kind, df in dfs_by_seed[seed].items():
-            print(f"[{kind}] shape={df.shape} cols={list(df.columns)}")
-        print()
+    if not args.quiet_scan:
+        for seed in seeds:
+            print(f"----Loaded seed {seed}----")
+            for kind, df in dfs_by_seed[seed].items():
+                print(f"[{kind}] shape={df.shape} cols={list(df.columns)}")
+            print()
+
+    table_a = compute_table_a_reward(dfs_by_seed)
+    print_table_a_reward(
+        table_a,
+        include_baseline_sanity=args.include_baseline_sanity,
+        show_per_seed=args.show_per_seed,
+    )
 
     return dfs_by_seed
 
 
 if __name__ == "__main__":
     main()
+

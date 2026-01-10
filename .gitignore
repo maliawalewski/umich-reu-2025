@@ -15,3 +15,4 @@
 /src/extra/RewardVsTime/reward_vs_time.pdf
 /src/extra/RewardVsTime/figures/
 /src/extra/MakePlots/figures/
+__pycache__/
