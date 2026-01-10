@@ -5,7 +5,7 @@ from typing import Dict
 
 import pandas as pd
 
-from table_a_reward import compute_table_a_reward, print_table_a_reward
+from table_a_reward import compute_table_a_reward, print_table_a_both_modes
 from weights_table import weights_table_from_dfs
 
 # Example:
@@ -105,6 +105,12 @@ def main():
         action="store_true",
         help="If set, print per-seed breakdown after aggregated metrics.",
     )
+    ap.add_argument(
+        "--show-debug-reward-deltas",
+        action="store_true",
+        help="If set, print debug reward-unit deltas alongside the percent-based stats.",
+    )
+
     args = ap.parse_args()
 
     src_dir = Path(args.src).resolve() if args.src else get_src_dir()
@@ -155,10 +161,12 @@ def main():
             print()
 
     table_a = compute_table_a_reward(dfs_by_seed)
-    print_table_a_reward(
+
+    print_table_a_both_modes(
         table_a,
         include_baseline_sanity=args.include_baseline_sanity,
         show_per_seed=args.show_per_seed,
+        show_debug_reward_deltas=args.show_debug_reward_deltas,
     )
 
     weights_table_from_dfs(dfs_by_seed, action_scale=1e3, show_int=True)
