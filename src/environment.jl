@@ -192,7 +192,6 @@ function act!(env::Environment, raw_action::Vector{Float32}, use_baseline::Bool)
                 ideal_copy;
                 ordering = order,
                 seed = env.groebner_seed,
-                tasks = GROEBNER_TASKS,
                 monoms = GROEBNER_MONOMS,
                 homogenize = GROEBNER_HOMOGENIZE,
             ),
@@ -356,7 +355,6 @@ function precompute_baselines!(env::Environment; compute_deglex::Bool = true)
                 ideal_copy;
                 ordering = DegRevLex(),
                 seed = env.groebner_seed,
-                tasks = GROEBNER_TASKS,
                 monoms = GROEBNER_MONOMS,
                 homogenize = GROEBNER_HOMOGENIZE,
             ),
@@ -371,7 +369,6 @@ function precompute_baselines!(env::Environment; compute_deglex::Bool = true)
                     ideal_copy;
                     ordering = DegLex(),
                     seed = env.groebner_seed,
-                    tasks = GROEBNER_TASKS,
                     monoms = GROEBNER_MONOMS,
                     homogenize = GROEBNER_HOMOGENIZE,
                 ),

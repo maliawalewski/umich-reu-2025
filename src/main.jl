@@ -1,3 +1,6 @@
+import Pkg 
+Pkg.activate(joinpath(@__DIR__, ".."))
+
 using Groebner
 using AbstractAlgebra
 using Statistics

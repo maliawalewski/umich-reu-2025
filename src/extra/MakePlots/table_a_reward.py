@@ -18,6 +18,25 @@ def _mean_std(vals: List[float]) -> Tuple[float, float]:
         return (float(x[0]), 0.0)
     return (float(x.mean()), float(x.std(ddof=1)))
 
+def _median_iqr(vals: List[float]) -> Tuple[float, float, float, float, float]:
+    x = _safe_arr(np.array(vals, dtype=float))
+    if x.size == 0:
+        return (float("nan"), float("nan"), float("nan"), float("nan"), 0.0)
+    q1, med, q3 = np.percentile(x, [25, 50, 75])
+    return (float(med), float(q1), float(q3), float(q3 - q1), float(x.size))
+
+
+def _fmt_percent_iqr(med: float, q1: float, q3: float, fmt: str = "{:.3f}") -> str:
+    if not np.isfinite(med):
+        return "NA"
+    return f"{fmt.format(med)}% [IQR {fmt.format(q1)}%, {fmt.format(q3)}%]"
+
+
+def _fmt_reward_iqr(med: float, q1: float, q3: float, fmt: str = "{:.6g}") -> str:
+    if not np.isfinite(med):
+        return "NA"
+    return f"{fmt.format(med)} (reward) [IQR {fmt.format(q1)}, {fmt.format(q3)}]"
+
 
 def _comp_stats(
     x: np.ndarray,
@@ -260,6 +279,36 @@ def _print_block_pooled(
         print(f"  [debug] Mean delta reward:            {mean:.6g} (reward)")
 
 
+def _print_block_by_seed_iqr(
+    title: str,
+    prefix: str,
+    per_seed: Dict[int, Dict[str, float]],
+    seeds: List[int],
+    show_debug_reward_deltas: bool,
+) -> None:
+    def vals(key: str) -> List[float]:
+        return [per_seed[s].get(f"{prefix}_{key}", float("nan")) for s in seeds]
+
+    win_med, win_q1, win_q3, _, _ = _median_iqr(vals("win_rate_percent"))
+    tie_med, tie_q1, tie_q3, _, _ = _median_iqr(vals("tie_rate_percent"))
+    loss_med, loss_q1, loss_q3, _, _ = _median_iqr(vals("loss_rate_percent"))
+    imp_med, imp_q1, imp_q3, _, _ = _median_iqr(vals("mean_improve_percent_on_wins"))
+    deg_med, deg_q1, deg_q3, _, _ = _median_iqr(vals("mean_degrade_percent_on_losses"))
+
+    print(f"{title}:")
+    print(f"  Win rate (percent):                   {_fmt_percent_iqr(win_med, win_q1, win_q3)}")
+    print(f"  Tie rate (percent):                   {_fmt_percent_iqr(tie_med, tie_q1, tie_q3)}")
+    print(f"  Loss rate (percent):                  {_fmt_percent_iqr(loss_med, loss_q1, loss_q3)}")
+    print(f"  Mean improvement on wins only (%):    {_fmt_percent_iqr(imp_med, imp_q1, imp_q3)}")
+    print(f"  Mean degradation on losses only (%):  {_fmt_percent_iqr(deg_med, deg_q1, deg_q3)}")
+
+    if show_debug_reward_deltas:
+        med_med, med_q1, med_q3, _, _ = _median_iqr(vals("median_delta_reward"))
+        mean_med, mean_q1, mean_q3, _, _ = _median_iqr(vals("mean_delta_reward"))
+        print(f"  [debug] Median delta reward:          {_fmt_reward_iqr(med_med, med_q1, med_q3)}")
+        print(f"  [debug] Mean delta reward:            {_fmt_reward_iqr(mean_med, mean_q1, mean_q3)}")
+
+
 def _print_block_by_seed(
     title: str,
     prefix: str,
@@ -294,7 +343,7 @@ def _print_block_by_seed(
 def print_table_a_both_modes(
     table_a: Dict[str, Any],
     include_baseline_sanity: bool = False,
-    show_per_seed: bool = False,
+    show_per_seed: bool = True,
     show_debug_reward_deltas: bool = False,
 ) -> None:
     seeds = table_a["seeds"]
@@ -320,16 +369,27 @@ def print_table_a_both_modes(
         )
     print()
 
-    print("----Table A (APPENDIX; mean +- std across seeds)----")
+    print("----Table A (APPENDIX; median [IQR] across seeds)----")
     print(f"Seeds used: {seeds} | n_seeds={table_a['n_seeds']}")
-    agg = table_a["by_seed_agg"]
 
-    _print_block_by_seed(
-        "Agent vs GrevLex", "agent_vs_grevlex", agg, show_debug_reward_deltas
+    per_seed = table_a["per_seed"]
+
+    _print_block_by_seed_iqr(
+        "Agent vs GrevLex", "agent_vs_grevlex", per_seed, seeds, show_debug_reward_deltas
     )
-    _print_block_by_seed(
-        "Agent vs DegLex", "agent_vs_deglex", agg, show_debug_reward_deltas
+    _print_block_by_seed_iqr(
+        "Agent vs DegLex", "agent_vs_deglex", per_seed, seeds, show_debug_reward_deltas
     )
+    if include_baseline_sanity:
+        _print_block_by_seed_iqr(
+            "DegLex vs GrevLex (sanity check)",
+            "deglex_vs_grevlex",
+            per_seed,
+            seeds,
+            show_debug_reward_deltas,
+        )
+    print()
+
     if include_baseline_sanity:
         _print_block_by_seed(
             "DegLex vs GrevLex (sanity check)",

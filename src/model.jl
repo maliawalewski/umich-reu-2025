@@ -27,7 +27,6 @@ for d in (DATA_DIR, WEIGHTS_DIR, RESULTS_DIR, PLOTS_DIR)
 end
 
 # Groebner.jl determinism parameters (see: https://sumiya11.github.io/Groebner.jl/interface/#Groebner.groebner_learn)
-GROEBNER_TASKS = 1
 GROEBNER_MONOMS = :dense
 GROEBNER_HOMOGENIZE = :no
 
@@ -836,7 +835,6 @@ function test_td3!(
         ideal_copy;
         ordering = DegRevLex(),
         seed = env.groebner_seed,
-        tasks = GROEBNER_TASKS,
         monoms = GROEBNER_MONOMS,
         homogenize = GROEBNER_HOMOGENIZE,
     )
@@ -845,7 +843,6 @@ function test_td3!(
         ideal_copy;
         ordering = DegLex(),
         seed = env.groebner_seed,
-        tasks = GROEBNER_TASKS,
         monoms = GROEBNER_MONOMS,
         homogenize = GROEBNER_HOMOGENIZE,
     )
@@ -855,7 +852,6 @@ function test_td3!(
         ideal_copy;
         ordering = ord0,
         seed = env.groebner_seed,
-        tasks = GROEBNER_TASKS,
         monoms = GROEBNER_MONOMS,
         homogenize = GROEBNER_HOMOGENIZE,
     )
@@ -873,7 +869,6 @@ function test_td3!(
                 ideal_copy;
                 ordering = DegLex(),
                 seed = env.groebner_seed,
-                tasks = GROEBNER_TASKS,
                 monoms = GROEBNER_MONOMS,
                 homogenize = GROEBNER_HOMOGENIZE,
             ),
@@ -886,7 +881,6 @@ function test_td3!(
                 ideal_copy;
                 ordering = DegRevLex(),
                 seed = env.groebner_seed,
-                tasks = GROEBNER_TASKS,
                 monoms = GROEBNER_MONOMS,
                 homogenize = GROEBNER_HOMOGENIZE,
             ),
@@ -998,7 +992,6 @@ function eval_order_on_ideal(ideal, vars, weights, groebner_seed)
             ideal_copy;
             ordering = order,
             seed = groebner_seed,
-            tasks = GROEBNER_TASKS,
             monoms = GROEBNER_MONOMS,
             homogenize = GROEBNER_HOMOGENIZE,
         ),
@@ -1021,7 +1014,6 @@ function timing_warmup_all!(
         ideal_copy;
         ordering = DegRevLex(),
         seed = env.groebner_seed,
-        tasks = GROEBNER_TASKS,
         monoms = GROEBNER_MONOMS,
         homogenize = GROEBNER_HOMOGENIZE,
     )
@@ -1031,7 +1023,6 @@ function timing_warmup_all!(
         ideal_copy;
         ordering = DegLex(),
         seed = env.groebner_seed,
-        tasks = GROEBNER_TASKS,
         monoms = GROEBNER_MONOMS,
         homogenize = GROEBNER_HOMOGENIZE,
     )
@@ -1042,7 +1033,6 @@ function timing_warmup_all!(
         ideal_copy;
         ordering = ord0,
         seed = env.groebner_seed,
-        tasks = GROEBNER_TASKS,
         monoms = GROEBNER_MONOMS,
         homogenize = GROEBNER_HOMOGENIZE,
     )

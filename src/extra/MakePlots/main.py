@@ -101,11 +101,6 @@ def main():
         help="If set, also print DegLex vs GrevLex sanity-check block.",
     )
     ap.add_argument(
-        "--show-per-seed",
-        action="store_true",
-        help="If set, print per-seed breakdown after aggregated metrics.",
-    )
-    ap.add_argument(
         "--show-debug-reward-deltas",
         action="store_true",
         help="If set, print debug reward-unit deltas alongside the percent-based stats.",
@@ -165,7 +160,7 @@ def main():
     print_table_a_both_modes(
         table_a,
         include_baseline_sanity=args.include_baseline_sanity,
-        show_per_seed=args.show_per_seed,
+        show_per_seed=True,
         show_debug_reward_deltas=args.show_debug_reward_deltas,
     )
 

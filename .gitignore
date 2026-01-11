@@ -1,9 +1,10 @@
+/src/results/*
+!/src/results/*.csv
 /src/weights/
 /reward_comparison.pdf
 /reward_plot.pdf
 /src/data/
 /src/plots/
-/src/results/
 /src/symbolic_regression/results/
 /src/symbolic_regression/symbolic_outputs/
 /src/symbolic_regression/weights/
@@ -14,5 +15,4 @@
 /src/extra/RewardVsTime/*.bin
 /src/extra/RewardVsTime/reward_vs_time.pdf
 /src/extra/RewardVsTime/figures/
-/src/extra/MakePlots/figures/
-__pycache__/
+/src/extra/MakePlots/figures
