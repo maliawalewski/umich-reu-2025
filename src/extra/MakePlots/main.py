@@ -8,11 +8,7 @@ import pandas as pd
 from table_a_reward import compute_table_a_reward, print_table_a_both_modes
 from weights_table import weights_table_from_dfs
 from training_plot import make_training_plot
-
-# Example:
-#   python main.py --baseset TRIANGULATION_BASE_SET
-#   python main.py --baseset TRIANGULATION_BASE_SET --show-per-seed
-#   python main.py --baseset TRIANGULATION_BASE_SET --include-baseline-sanity
+from test_delta_plots import make_test_delta_figs
 
 KIND_SUFFIXES = {
     "final_agent_weight_vector": "_final_agent_weight_vector.csv",
@@ -139,6 +135,9 @@ def main():
         default=400,
         help="Moving average window (in x-axis points).",
     )
+    ap.add_argument("--make-test-delta-plots", action="store_true")
+    ap.add_argument("--delta-round", type=float, default=None, help="optional rounding for delta plots, e.g. 1e-6")
+
 
     args = ap.parse_args()
 
@@ -223,6 +222,19 @@ def main():
             band="iqr",
         )
         print(f"Wrote training plot: {outpath}")
+    
+    if args.make_test_delta_plots:
+        outdir = Path(args.outdir)
+        if not outdir.is_absolute():
+            outdir = (root_dir / outdir).resolve()
+
+        make_test_delta_figs(
+            dfs_by_seed,
+            outdir,
+            baseset=args.baseset,
+            round_to=args.delta_round,
+        )
+        print(f"Wrote delta plots to {outdir}")
 
     return dfs_by_seed
 
