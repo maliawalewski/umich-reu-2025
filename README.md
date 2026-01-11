@@ -2,6 +2,32 @@ Learning Monomial Orders in Grobner Basis Computations
 
 This repo contains code and data for our Learning Monomial Orders in Groebner Basis Algorithms project, as well as code written during training for the project. This research was completed at the REU Site: Mathematical Analysis and Applications at the University of Michigan-Dearborn. We would like to thank the National Science Foundation (DMS-2243808).
 
+## Getting started
+
+1) **Install Julia**
+
+2) **Clone this repository**
+
+3) **Run setup script to install packages:**
+
+```bash
+bash scripts/setup.sh
+```
+
+4) **To recreate tables/figures:**
+```bash
+bash scripts/make_figures.sh
+```
+
+5) **To train the RL agent:**
+```bash
+bash scripts/run_training.sh TRIANGULATION_BASE_SET 0 true false
+```
+or 
+```bash
+julia --project=. src/main.jl --baseset=TRIANGULATION_BASE_SET --seed=0 --PER=true --LSTM=false
+```
+
 ### Flags for RL model:
 
 | Flag | Type | Default |Description                                                                                

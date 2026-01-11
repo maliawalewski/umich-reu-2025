@@ -1,6 +1,7 @@
 /src/results/*
 !/src/results/*.csv
 /src/weights/
+figures/
 /reward_comparison.pdf
 /reward_plot.pdf
 /src/data/

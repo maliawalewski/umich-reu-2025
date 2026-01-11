@@ -7,6 +7,7 @@ import pandas as pd
 
 from table_a_reward import compute_table_a_reward, print_table_a_both_modes
 from weights_table import weights_table_from_dfs
+from training_plot import make_training_plot
 
 # Example:
 #   python main.py --baseset TRIANGULATION_BASE_SET
@@ -28,6 +29,10 @@ FILENAME_RE = re.compile(
 
 def get_src_dir() -> Path:
     return Path(__file__).resolve().parents[2]
+
+
+def get_root_dir() -> Path:
+    return Path(__file__).resolve().parents[3]
 
 
 def load_csv(path: Path) -> pd.DataFrame:
@@ -105,6 +110,35 @@ def main():
         action="store_true",
         help="If set, print debug reward-unit deltas alongside the percent-based stats.",
     )
+    ap.add_argument(
+        "--outdir",
+        type=str,
+        default="figures",
+        help="Where to write plots (relative to src/ unless absolute).",
+    )
+    ap.add_argument(
+        "--make-training-plot",
+        action="store_true",
+        help="If set, write the training curve plot PDF.",
+    )
+    ap.add_argument(
+        "--training-mode",
+        choices=["raw", "delta"],
+        default="raw",
+        help="raw=absolute rewards, delta=Δ vs GrevLex.",
+    )
+    ap.add_argument(
+        "--training-xaxis",
+        choices=["episode", "global_timestep"],
+        default="episode",
+        help="X-axis for training plot.",
+    )
+    ap.add_argument(
+        "--training-window",
+        type=int,
+        default=400,
+        help="Moving average window (in x-axis points).",
+    )
 
     args = ap.parse_args()
 
@@ -165,6 +199,30 @@ def main():
     )
 
     weights_table_from_dfs(dfs_by_seed, action_scale=1e3, show_int=True)
+
+    root_dir = get_root_dir()
+
+    if args.make_training_plot:
+        outdir = Path(args.outdir)
+        if not outdir.is_absolute():
+            outdir = (root_dir / outdir).resolve()
+
+        outpath = (
+            outdir
+            / f"training_curve_{args.baseset}_{args.training_mode}_{args.training_xaxis}.pdf"
+        )
+
+        make_training_plot(
+            dfs_by_seed,
+            outpath,
+            mode=args.training_mode,
+            xaxis=args.training_xaxis,
+            window=args.training_window,
+            include_deglex_reference=True,
+            title=None,
+            band="iqr",
+        )
+        print(f"Wrote training plot: {outpath}")
 
     return dfs_by_seed
 

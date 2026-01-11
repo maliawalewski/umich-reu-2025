@@ -35,10 +35,11 @@ def rankdata(a):
 def spearmanr(x, y):
     return pearsonr(rankdata(x), rankdata(y))
 
+
 def rcparams():
     plt.rcParams.update({
         "font.family": "serif",
-        "font.serif": ["Times New Roman", "Times", "Nimbus Roman No9 L", "DejaVu Serif"],
+        "font.serif": ["FreeSerif", "STIXGeneral", "DejaVu Serif"],
         "mathtext.fontset": "stix",
 
         "font.size": 8,
@@ -46,6 +47,9 @@ def rcparams():
         "axes.titlesize": 8,
         "xtick.labelsize": 8,
         "ytick.labelsize": 8,
+
+        "font.weight": "normal",
+        "axes.labelweight": "normal",
 
         "text.color": "black",
         "axes.labelcolor": "black",
