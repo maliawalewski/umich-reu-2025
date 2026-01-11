@@ -186,6 +186,8 @@ function n_site_phosphorylation_generate_ideal(;
     return polynomials, vars
 end
 
+@inline is_pad_term(e) = any(<(0), e)
+
 function new_generate_ideal(;
     rng::AbstractRNG,
     num_variables::Integer = 3,
@@ -196,7 +198,6 @@ function new_generate_ideal(;
 )
     @assert num_variables > 0
     @assert length(base_sets) == num_polynomials
-    @assert length(base_sets[1]) == num_terms
 
     field = GF(32003)
     ring, vars = polynomial_ring(field, ["x_" * string(i) for i = 1:num_variables])
@@ -205,7 +206,7 @@ function new_generate_ideal(;
     for base_set in base_sets
         terms = Any[]
         for e in base_set
-            if e[1] == -1
+            if is_pad_term(e)
                 continue
             end
             coeff = rand(rng, field)

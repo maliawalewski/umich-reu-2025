@@ -107,24 +107,28 @@ function get_batch(buffer::PrioritizedReplayBuffer, sample_indices::Vector{Int64
     return samples, sample_indices, weights
 end
 
+function max_total_degree(base_sets::Vector{Any})
+    return maximum(
+        sum(e) for poly in base_sets for e in poly if !any(<(0), e)
+    )
+end
 
-function pad_base_set(base_sets::Vector{Any})
-    max_terms = NUM_TERMS
-    num_vars = NUM_VARS
+function pad_base_set(
+    base_sets::Vector{Any};
+    max_terms::Int = maximum(length.(base_sets)),
+    num_vars::Int = length(base_sets[1][1]),
+)
+    padding_monomial = fill(-1, num_vars)
 
-    padding_monomial = fill(-1, num_vars) # -1 input for pad 
-
-    padded_sets = []
-    for p in base_sets
-        current_terms = length(p)
-        num_to_pad = max_terms - current_terms
-
-        # Create a new padded polynomial by appending the padding monomial
+    padded_sets = Vector{Any}(undef, length(base_sets))
+    for (i, p) in enumerate(base_sets)
         padded_poly = copy(p)
+        num_to_pad = max_terms - length(p)
+        @assert num_to_pad >= 0 "max_terms smaller than a polynomial's term count"
         for _ = 1:num_to_pad
             push!(padded_poly, padding_monomial)
         end
-        push!(padded_sets, padded_poly)
+        padded_sets[i] = padded_poly
     end
 
     return padded_sets, max_terms

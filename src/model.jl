@@ -274,9 +274,12 @@ function train_td3!(
         error("Unknown baseset: $(args["baseset"])")
     end
 
+    is_n_site = args["baseset"] == "N_SITE_PHOSPHORYLATION_BASE_SET"
+
     if args["baseset"] != "DEFAULT"
-        flat_terms = vcat(base_sets...)
-        max_degree = maximum(sum(term) for term in flat_terms)
+        max_degree = max_total_degree(base_sets)
+        base_sets, max_terms = pad_base_set(base_sets; max_terms = env.num_terms, num_vars  = env.num_vars)
+        @assert max_terms == env.num_terms
     end
 
     ideals, vars, monomial_matrix = new_generate_data(
@@ -290,7 +293,7 @@ function train_td3!(
         base_sets = base_sets,
         base_set_path = base_set_path,
         should_save_base_sets = base_sets === nothing,
-        use_n_site_phosphorylation_coeffs = base_sets === N_SITE_PHOSPHORYLATION_BASE_SET,
+        use_n_site_phosphorylation_coeffs = is_n_site,
     )
 
     env.variables = vars
@@ -362,7 +365,8 @@ function train_td3!(
             raw_matrix =
                 vcat([collect(Iterators.flatten(row))' for row in env.monomial_matrix]...)
             matrix = normalize_columns(raw_matrix)
-
+            
+            @assert env.num_polys >= env.num_vars "Current state padding assumes num_polys >= num_vars"
             padded_s = vcat(s, zeros(Float32, env.num_polys - env.num_vars))
             s_input = hcat(matrix, padded_s)
             s_input =
@@ -726,10 +730,13 @@ function test_td3!(
         error("Unknown baseset: $(args["baseset"])")
     end
 
+    is_n_site = args["baseset"] == "N_SITE_PHOSPHORYLATION_BASE_SET"
+
     if args["baseset"] != "DEFAULT"
-        flat_terms = vcat(base_sets...)
-        max_degree = maximum(sum(term) for term in flat_terms)
-    end
+        max_degree = max_total_degree(base_sets)
+        base_sets, max_terms = pad_base_set(base_sets; max_terms = env.num_terms, num_vars  = env.num_vars)
+        @assert max_terms == env.num_terms
+    end 
 
     ideals, vars, monomial_matrix = new_generate_data(
         rng = rng_test,
@@ -742,7 +749,7 @@ function test_td3!(
         base_sets = base_sets,
         base_set_path = base_set_path,
         should_save_base_sets = base_sets === nothing,
-        use_n_site_phosphorylation_coeffs = base_sets === N_SITE_PHOSPHORYLATION_BASE_SET,
+        use_n_site_phosphorylation_coeffs = is_n_site,
     )
 
     env.variables = vars
@@ -769,7 +776,8 @@ function test_td3!(
             raw_matrix =
                 vcat([collect(Iterators.flatten(row))' for row in env.monomial_matrix]...)
             matrix = normalize_columns(raw_matrix)
-
+            
+            @assert env.num_polys >= env.num_vars "Current state padding assumes num_polys >= num_vars"
             padded_s = vcat(s, zeros(Float32, env.num_polys - env.num_vars))
             s_input = hcat(matrix, padded_s)
             s_input =
@@ -1043,6 +1051,7 @@ function timing_warmup_all!(
     matrix = normalize_columns(raw_matrix)
 
     s = Float32.(state(env))
+    @assert env.num_polys >= env.num_vars "Current state padding assumes num_polys >= num_vars"
     padded_s = vcat(s, zeros(Float32, env.num_polys - env.num_vars))
     s_input = hcat(matrix, padded_s)
     s_input = reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_polys, 1))

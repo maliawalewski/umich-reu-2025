@@ -72,8 +72,7 @@ function init_environment(;
     else
         num_polys = length(base_sets)
         @assert num_polys > 0 "Empty base_sets"
-        num_terms = length(base_sets[1])
-        @assert all(length(p) == num_terms for p in base_sets) "polynomials have differing term counts"
+        num_terms = maximum(length.(base_sets))
         num_vars = length(base_sets[1][1])
         @assert all(length(t) == num_vars for p in base_sets for t in p) "terms do not all have the same number of variables"
     end
