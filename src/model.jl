@@ -148,7 +148,7 @@ function build_td3_model(env::Environment, args::Dict{String,Any})
 
     critic_1 = Flux.Chain(
         Dense(
-            ((env.num_vars * env.num_terms) + 2) * env.num_polys,
+            ((env.num_vars * env.num_terms) + 1) * env.num_polys + env.num_vars,
             CRITIC_HIDDEN_WIDTH,
             relu,
         ),
@@ -158,7 +158,7 @@ function build_td3_model(env::Environment, args::Dict{String,Any})
     )
     critic_2 = Flux.Chain(
         Dense(
-            ((env.num_vars * env.num_terms) + 2) * env.num_polys,
+            ((env.num_vars * env.num_terms) + 1) * env.num_polys + env.num_vars,
             CRITIC_HIDDEN_WIDTH,
             relu,
         ),
@@ -297,6 +297,10 @@ function train_td3!(
     env.monomial_matrix = monomial_matrix
     println("Monomial_matrix: ", env.monomial_matrix)
 
+    @show env.num_vars env.num_terms env.num_polys
+    @show size(actor.actor[1].weight)  # (hidden, expected_in_dim)
+    @show ((env.num_vars * env.num_terms) + 1) * env.num_polys
+
     ideal0 = ideals[1]
     timing_warmup_all!(actor, critic, env, ideal0, vars, rng_policy; do_backprop = true)
     println("Timing warmup complete.")
@@ -409,14 +413,15 @@ function train_td3!(
                 if args["per"]
                     add_experience!(
                         replay_buffer,
-                        Transition(
-                            padded_s,
-                            padded_s_next,
-                            r,
-                            padded_s_next,
-                            s_input,
-                            s_next_input,
-                        ),
+                        # Transition(
+                            # padded_s,
+                            # padded_s_next,
+                            # r,
+                            # padded_s_next,
+                            # s_input,
+                            # s_next_input,
+                        # ),
+                        Transition(s, action, r, s_next, s_input, s_next_input),
                         abs(r),
                     )
                 else
@@ -446,7 +451,7 @@ function train_td3!(
             r_batch = hcat([b.r for b in batch]...)
             s_next_batch = hcat(
                 [
-                    b.s_next !== nothing ? b.s_next : zeros(Float32, env.num_polys) for
+                    b.s_next !== nothing ? b.s_next : zeros(Float32, env.num_vars) for
                     b in batch
                 ]...,
             )
@@ -466,8 +471,7 @@ function train_td3!(
             end
 
             target_action = actor.actor_target(s_next_input_batch) .+ epsilon
-            target_action =
-                vcat(target_action, zeros(Float32, env.num_polys - env.num_vars, N_SAMPLES))
+            # target_action = vcat(target_action, zeros(Float32, env.num_polys - env.num_vars, N_SAMPLES))
             target_action = Float32.(target_action)
 
             critic_1_target_val =
@@ -515,10 +519,10 @@ function train_td3!(
                 end
                 actor_loss, back = Flux.withgradient(actor.actor) do model
                     a_pred = model(Float32.(s_input_batch))
-                    a_pred = vcat(
-                        a_pred,
-                        zeros(Float32, env.num_polys - env.num_vars, N_SAMPLES),
-                    )
+                    # a_pred = vcat(
+                        # a_pred,
+                        # zeros(Float32, env.num_polys - env.num_vars, N_SAMPLES),
+                    # )
                     q_val = critic.critic_1(Float32.(vcat(s_input_batch, a_pred)))
                     -mean(q_val)
                 end
