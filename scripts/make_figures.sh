@@ -52,7 +52,8 @@ for b in $BASESETS; do
     --make-training-plot \
     --training-mode delta \
     --training-xaxis episode \
-    --training-window "$TRAIN_WINDOW"
+    --training-window "$TRAIN_WINDOW" \
+    --make-test-delta-plots
   echo
 done
 
