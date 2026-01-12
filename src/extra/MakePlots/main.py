@@ -9,6 +9,7 @@ from table_a_reward import compute_table_a_reward, print_table_a_both_modes
 from weights_table import weights_table_from_dfs
 from training_plot import make_training_plot
 from test_delta_plots import make_test_delta_figs
+from runtime_ecdf import make_runtime_ecdf_figs
 
 KIND_SUFFIXES = {
     "final_agent_weight_vector": "_final_agent_weight_vector.csv",
@@ -137,6 +138,10 @@ def main():
     )
     ap.add_argument("--make-test-delta-plots", action="store_true")
     ap.add_argument("--delta-round", type=float, default=None, help="optional rounding for delta plots, e.g. 1e-6")
+    ap.add_argument("--make-runtime-ecdf", action="store_true")
+    ap.add_argument("--runtime-ecdf-logx", action="store_true")
+    ap.add_argument("--runtime-ecdf-clip", type=float, default=None, help="If set, clip ECDF x-range to [q, 1-q], e.g. 0.001")
+
 
 
     args = ap.parse_args()
@@ -235,6 +240,27 @@ def main():
             round_to=args.delta_round,
         )
         print(f"Wrote delta plots to {outdir}")
+
+    if args.make_runtime_ecdf:
+        outdir = Path(args.outdir)
+        if not outdir.is_absolute():
+            outdir = (root_dir / outdir).resolve()
+
+        clip = None
+        if args.runtime_ecdf_clip is not None:
+            q = float(args.runtime_ecdf_clip)
+            clip = (q, 1.0 - q)
+
+        make_runtime_ecdf_figs(
+            dfs_by_seed,
+            outdir,
+            baseset=args.baseset,
+            make_appendix_deglex=True,
+            logx=args.runtime_ecdf_logx,
+            x_clip_quantiles=clip,
+        )
+        print(f"Wrote runtime ECDFs to {outdir}")
+
 
     return dfs_by_seed
 
