@@ -1,4 +1,4 @@
-import Pkg 
+import Pkg
 Pkg.activate(joinpath(@__DIR__, ".."))
 
 using Groebner
@@ -52,6 +52,8 @@ function main()
     rng_test = MersenneTwister(seed + 4)
     rng_env = MersenneTwister(seed + 5)
     groebner_seed = seed + 6
+    rng_cal = MersenneTwister(seed + 7)
+    rng_perm = MersenneTwister(seed + 8)
 
     env = init_environment(
         args = args,
@@ -81,7 +83,7 @@ function main()
         rng_env,
     )
 
-    test_td3!(actor_struct, critic_struct, env, args, rng_test, rng_env)
+    test_td3!(actor_struct, critic_struct, env, args, rng_test, rng_env, rng_cal, rng_perm)
 
     interpret_results(args)
 

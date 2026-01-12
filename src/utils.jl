@@ -4,6 +4,15 @@ using StatsBase
 # Reference: https://github.com/JuliaPOMDP/DeepQLearning.jl/blob/master/src/prioritized_experience_replay.jl
 # Reference: https://github.com/Ullar-Kask/TD3-PER/blob/master/Pytorch/src/PER.py
 
+METHOD_PERMS = (
+    (:agent, :deglex, :degrevlex),
+    (:agent, :degrevlex, :deglex),
+    (:deglex, :agent, :degrevlex),
+    (:deglex, :degrevlex, :agent),
+    (:degrevlex, :agent, :deglex),
+    (:degrevlex, :deglex, :agent),
+)
+
 struct Transition
     s::Vector{Float32}
     a::Vector{Float32}
@@ -107,10 +116,27 @@ function get_batch(buffer::PrioritizedReplayBuffer, sample_indices::Vector{Int64
     return samples, sample_indices, weights
 end
 
+mutable struct PermScheduler
+    rng::AbstractRNG
+    shuffled::Vector{NTuple{3,Symbol}}
+    k::Int
+end
+
+function PermScheduler(rng::AbstractRNG)
+    PermScheduler(rng, collect(METHOD_PERMS), 0)
+end
+
+function next_perm!(ps::PermScheduler)
+    if ps.k % 6 == 0
+        ps.shuffled = collect(METHOD_PERMS)
+        Random.shuffle!(ps.rng, ps.shuffled)
+    end
+    ps.k += 1
+    return ps.shuffled[((ps.k - 1) % 6) + 1]
+end
+
 function max_total_degree(base_sets::Vector{Any})
-    return maximum(
-        sum(e) for poly in base_sets for e in poly if !any(<(0), e)
-    )
+    return maximum(sum(e) for poly in base_sets for e in poly if !any(<(0), e))
 end
 
 function pad_base_set(

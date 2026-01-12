@@ -277,7 +277,8 @@ function train_td3!(
 
     if args["baseset"] != "DEFAULT"
         max_degree = max_total_degree(base_sets)
-        base_sets, max_terms = pad_base_set(base_sets; max_terms = env.num_terms, num_vars  = env.num_vars)
+        base_sets, max_terms =
+            pad_base_set(base_sets; max_terms = env.num_terms, num_vars = env.num_vars)
         @assert max_terms == env.num_terms
     end
 
@@ -364,7 +365,7 @@ function train_td3!(
             raw_matrix =
                 vcat([collect(Iterators.flatten(row))' for row in env.monomial_matrix]...)
             matrix = normalize_columns(raw_matrix)
-            
+
             @assert env.num_polys >= env.num_vars "Current state padding assumes num_polys >= num_vars"
             padded_s = vcat(s, zeros(Float32, env.num_polys - env.num_vars))
             s_input = hcat(matrix, padded_s)
@@ -417,12 +418,12 @@ function train_td3!(
                     add_experience!(
                         replay_buffer,
                         # Transition(
-                            # padded_s,
-                            # padded_s_next,
-                            # r,
-                            # padded_s_next,
-                            # s_input,
-                            # s_next_input,
+                        # padded_s,
+                        # padded_s_next,
+                        # r,
+                        # padded_s_next,
+                        # s_input,
+                        # s_next_input,
                         # ),
                         Transition(s, action, r, s_next, s_input, s_next_input),
                         abs(r),
@@ -523,8 +524,8 @@ function train_td3!(
                 actor_loss, back = Flux.withgradient(actor.actor) do model
                     a_pred = model(Float32.(s_input_batch))
                     # a_pred = vcat(
-                        # a_pred,
-                        # zeros(Float32, env.num_polys - env.num_vars, N_SAMPLES),
+                    # a_pred,
+                    # zeros(Float32, env.num_polys - env.num_vars, N_SAMPLES),
                     # )
                     q_val = critic.critic_1(Float32.(vcat(s_input_batch, a_pred)))
                     -mean(q_val)
@@ -701,6 +702,8 @@ function test_td3!(
     args::Dict{String,Any},
     rng_test::AbstractRNG,
     rng_env::AbstractRNG,
+    rng_cal::AbstractRNG,
+    rng_perm::AbstractRNG,
 )
     rewards = []
     actions_taken = []
@@ -733,9 +736,89 @@ function test_td3!(
 
     if args["baseset"] != "DEFAULT"
         max_degree = max_total_degree(base_sets)
-        base_sets, max_terms = pad_base_set(base_sets; max_terms = env.num_terms, num_vars  = env.num_vars)
+        base_sets, max_terms =
+            pad_base_set(base_sets; max_terms = env.num_terms, num_vars = env.num_vars)
         @assert max_terms == env.num_terms
-    end 
+    end
+
+    ideals_cal, vars_cal, monomial_matrix_cal = new_generate_data(
+        rng = rng_cal,
+        num_ideals = TEST_BATCH_SIZE,
+        num_polynomials = env.num_polys,
+        num_variables = env.num_vars,
+        max_degree = max_degree,
+        num_terms = env.num_terms,
+        max_attempts = MAX_ATTEMPTS,
+        base_sets = base_sets,
+        base_set_path = base_set_path,
+        should_save_base_sets = base_sets === nothing,
+        use_n_site_phosphorylation_coeffs = is_n_site,
+    )
+
+
+    env.variables = vars_cal
+    env.monomial_matrix = monomial_matrix_cal
+    println("Monomial_matrix: ", env.monomial_matrix)
+
+    test_batch_orders = []
+
+    for (idx, ideal) in enumerate(ideals_cal)
+        println("running inference on calibration ideal: $idx")
+
+        last_action = nothing
+
+        reset_env!(env)
+        env.ideal_batch = [ideal]
+        s = Float32.(state(env))
+        done = false
+
+        if args["lstm"]
+            Flux.reset!(actor.actor)
+        end
+
+        while !done
+            raw_matrix =
+                vcat([collect(Iterators.flatten(row))' for row in env.monomial_matrix]...)
+            matrix = normalize_columns(raw_matrix)
+
+            @assert env.num_polys >= env.num_vars "Current state padding assumes num_polys >= num_vars"
+            padded_s = vcat(s, zeros(Float32, env.num_polys - env.num_vars))
+            s_input = hcat(matrix, padded_s)
+            s_input =
+                reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_polys, 1))
+            s_input = Float32.(s_input)
+
+            action = vec(actor.actor(s_input))
+            last_action = action
+            basis = act!(env, action, false)
+
+            s_next = Float32.(state(env))
+            r = Float32(env.reward)
+            
+            s = Float32.(state(env))
+            done = is_terminated(env)
+        end
+
+        push!(test_batch_orders, last_action)
+
+    end
+
+    cand_keys = unique(map(a -> tuple(Float32.(a)...), test_batch_orders))
+
+    reward_map = Dict{NTuple{(env.num_vars),Float32},Float32}()
+    for order in cand_keys
+        println("evaluating order: $order")
+        reset_env!(env)
+        env.ideal_batch = ideals_cal
+        basis = act!(env, collect(order), false)
+        r = Float32(env.reward)
+        key = tuple(Float32.(order)...)
+        reward_map[key] = r
+    end
+
+    best_order = argmax(reward_map)
+    println("found best order: $best_order with average reward: $(reward_map[best_order])")
+    best_order = collect(best_order)
 
     ideals, vars, monomial_matrix = new_generate_data(
         rng = rng_test,
@@ -753,64 +836,6 @@ function test_td3!(
 
     env.variables = vars
     env.monomial_matrix = monomial_matrix
-    println("Monomial_matrix: ", env.monomial_matrix)
-
-    test_batch = rand(rng_test, ideals, TEST_BATCH_SIZE)
-    test_batch_orders = []
-    for (idx, ideal) in enumerate(test_batch)
-        println("running inference on ideal: $idx")
-
-        reward_map = Dict{NTuple{(env.num_vars),Float32},Float32}()
-
-        reset_env!(env)
-        env.ideal_batch = [ideal]
-        s = Float32.(state(env))
-        done = false
-
-        if args["lstm"]
-            Flux.reset!(actor.actor_target)
-        end
-
-        while !done
-            raw_matrix =
-                vcat([collect(Iterators.flatten(row))' for row in env.monomial_matrix]...)
-            matrix = normalize_columns(raw_matrix)
-            
-            @assert env.num_polys >= env.num_vars "Current state padding assumes num_polys >= num_vars"
-            padded_s = vcat(s, zeros(Float32, env.num_polys - env.num_vars))
-            s_input = hcat(matrix, padded_s)
-            s_input =
-                reshape(s_input, (((env.num_vars * env.num_terms) + 1) * env.num_polys, 1))
-            s_input = Float32.(s_input)
-
-            action = vec(actor.actor_target(s_input))
-            basis = act!(env, action, false)
-
-            s_next = Float32.(state(env))
-            r = Float32(env.reward)
-
-            reward_map[tuple(s_next...)] = r
-            done = is_terminated(env)
-        end
-
-        push!(test_batch_orders, argmax(reward_map))
-
-    end
-
-    reward_map = Dict{NTuple{(env.num_vars),Float32},Float32}()
-    for order in test_batch_orders
-        println("evaluating order: $order")
-        reset_env!(env)
-        env.ideal_batch = test_batch
-        basis = act!(env, collect(order), false)
-        s_next = Float32.(state(env))
-        r = Float32(env.reward)
-        reward_map[tuple(s_next...)] = r
-    end
-
-    best_order = argmax(reward_map)
-    println("found best order: $best_order with average reward: $(reward_map[best_order])")
-    best_order = collect(best_order)
 
     agent_rewards = []
     # lex_rewards = []
@@ -857,42 +882,57 @@ function test_td3!(
     )
     println("Timing warmup complete.")
 
+    ps = PermScheduler(rng_perm)
+
+    GC.gc()
+
     for (idx, ideal) in enumerate(ideals)
         idx % 100 == 0 && println("testing on ideal: $idx")
 
-        ar, at = eval_order_on_ideal(ideal, vars, best_order, env.groebner_seed)
-        push!(agent_rewards, ar)
+        if idx % 500 == 0
+            GC.gc()
+        end
 
-        ideal_copy = deepcopy(ideal)
-        (tr_d, _), td = timed(
-            () -> groebner_learn(
-                ideal_copy;
-                ordering = DegLex(),
-                seed = env.groebner_seed,
-                monoms = GROEBNER_MONOMS,
-                homogenize = GROEBNER_HOMOGENIZE,
+        perm = next_perm!(ps)
+
+        r_agent = t_agent = NaN
+        r_deg = t_deg = NaN
+        r_grev = t_grev = NaN
+
+        for m in perm
+            r, t = run_method(m, ideal, vars, best_order, env.groebner_seed)
+            if m == :agent
+                r_agent, t_agent = r, t
+            elseif m == :deglex
+                r_deg, t_deg = r, t
+            elseif m == :degrevlex
+                r_grev, t_grev = r, t
+            end
+
+        end
+
+        ratio_grev = (t_grev > 0) ? (t_agent / t_grev) : NaN
+        ratio_deg = (t_deg > 0) ? (t_agent / t_deg) : NaN
+
+        push!(
+            test_df,
+            (
+                idx,
+                r_agent,
+                t_agent,
+                r_deg,
+                t_deg,
+                r_grev,
+                t_grev,
+                r_agent - r_grev,
+                ratio_grev,
             ),
         )
-        dr = Float64(reward(tr_d))
 
-        ideal_copy = deepcopy(ideal)
-        (tr_g, _), tg = timed(
-            () -> groebner_learn(
-                ideal_copy;
-                ordering = DegRevLex(),
-                seed = env.groebner_seed,
-                monoms = GROEBNER_MONOMS,
-                homogenize = GROEBNER_HOMOGENIZE,
-            ),
-        )
-        gr = Float64(reward(tr_g))
+        push!(agent_rewards, r_agent)
+        push!(deglex_rewards, r_deg)
+        push!(grevlex_rewards, r_grev)
 
-        push!(deglex_rewards, dr)
-        push!(grevlex_rewards, gr)
-
-        ratio = tg > 0 ? (at / tg) : NaN
-
-        push!(test_df, (idx, ar, at, dr, td, gr, tg, ar - gr, ratio))
     end
 
     CSV.write(test_csv, test_df)
@@ -980,6 +1020,39 @@ end
 function normalize_columns(M::AbstractMatrix)
     mapslices(x -> x / (norm(x) + 1e-8), M; dims = 1)
 end
+
+function run_method(method::Symbol, ideal, vars, best_order, groebner_seed)
+    if method == :agent
+        return eval_order_on_ideal(ideal, vars, best_order, groebner_seed)
+    elseif method == :deglex
+        ideal_copy = deepcopy(ideal)
+        (tr, _), t = timed(
+            () -> groebner_learn(
+                ideal_copy;
+                ordering = DegLex(),
+                seed = groebner_seed,
+                monoms = GROEBNER_MONOMS,
+                homogenize = GROEBNER_HOMOGENIZE,
+            ),
+        )
+        return Float64(reward(tr)), Float64(t)
+    elseif method == :degrevlex
+        ideal_copy = deepcopy(ideal)
+        (tr, _), t = timed(
+            () -> groebner_learn(
+                ideal_copy;
+                ordering = DegRevLex(),
+                seed = groebner_seed,
+                monoms = GROEBNER_MONOMS,
+                homogenize = GROEBNER_HOMOGENIZE,
+            ),
+        )
+        return Float64(reward(tr)), Float64(t)
+    else
+        error("Unknown method: $method")
+    end
+end
+
 
 function eval_order_on_ideal(ideal, vars, weights, groebner_seed)
     weights = Int.(round.(ACTION_SCALE * weights))
