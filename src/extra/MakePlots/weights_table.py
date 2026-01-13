@@ -17,6 +17,29 @@ def _to_action_int(
     return a
 
 
+def _implied_order_str(vars_: List[str], weights_int: np.ndarray, prefix: str = "x") -> str:
+    vars_ = [str(v) for v in vars_]
+    wi = np.asarray(weights_int, dtype=int)
+    if wi.size == 0:
+        return ""
+
+    idx = sorted(range(len(vars_)), key=lambda i: (-int(wi[i]), vars_[i]))
+
+    parts: List[str] = []
+    i = 0
+    while i < len(idx):
+        j = i
+        w = int(wi[idx[i]])
+        tied = []
+        while j < len(idx) and int(wi[idx[j]]) == w:
+            tied.append(f"{prefix}{vars_[idx[j]]}")
+            j += 1
+        parts.append(" = ".join(tied))
+        i = j
+
+    return " > ".join(parts)
+
+
 def compute_weights_table(
     dfs_by_seed: Dict[int, Dict[str, pd.DataFrame]],
     action_scale: float = ACTION_SCALE_DEFAULT,
@@ -40,8 +63,9 @@ def compute_weights_table(
 
         vars_ = [str(v) for v in df["var"].tolist()]
         weights_float = np.asarray(df["weight"].to_numpy(float), dtype=float)
-
         weights_int = _to_action_int(weights_float, action_scale=action_scale)
+
+        implied_order = _implied_order_str(vars_, weights_int, prefix="x")
 
         rows.append(
             {
@@ -49,6 +73,7 @@ def compute_weights_table(
                 "vars": vars_,
                 "weights_float": weights_float.tolist(),
                 "weights_int": weights_int.tolist(),
+                "implied_order": implied_order, 
             }
         )
 
@@ -72,20 +97,22 @@ def print_weights_table(weights_tbl: Dict[str, Any], show_int: bool = True) -> N
     print(f"Seeds used: {seeds}")
     if show_int:
         print(
-            f"Columns: seed | vars | weights_float | weights_int (scale={int(action_scale)})"
+            f"Columns: seed | vars | weights_float | weights_int (scale={int(action_scale)}) | implied_order"
         )
     else:
-        print("Columns: seed | vars | weights_float")
+        print("Columns: seed | vars | weights_float | implied_order")
     print()
 
     for r in rows:
         seed = r["seed"]
         vars_ = r["vars"]
         wf = r["weights_float"]
+        implied = r.get("implied_order", "")
         line = f"seed={seed} | vars={vars_} | float={_fmt_vec(wf, '{:.6g}')}"
         if show_int:
             wi = r["weights_int"]
             line += f" | int={wi}"
+        line += f" | order={implied}"
         print(line)
 
     print()
@@ -99,3 +126,4 @@ def weights_table_from_dfs(
     tbl = compute_weights_table(dfs_by_seed, action_scale=action_scale)
     print_weights_table(tbl, show_int=show_int)
     return tbl
+
