@@ -10,6 +10,7 @@ from weights_table import weights_table_from_dfs
 from training_plot import make_training_plot
 from test_delta_plots import make_test_delta_figs
 from runtime_ecdf import make_runtime_ecdf_figs
+from cactus_plot import make_runtime_cactus_figs
 
 KIND_SUFFIXES = {
     "final_agent_weight_vector": "_final_agent_weight_vector.csv",
@@ -260,6 +261,18 @@ def main():
             x_clip_quantiles=clip,
         )
         print(f"Wrote runtime ECDFs to {outdir}")
+    
+    outdir = Path(args.outdir)
+    if not outdir.is_absolute():
+        outdir = (root_dir / outdir).resolve()
+    make_runtime_cactus_figs(
+        dfs_by_seed,
+        outdir,
+        baseset=args.baseset,
+        logy=False,
+        y_clip_quantiles=(0.01, 0.99),
+        per_seed_overlay=True,
+    )
 
 
     return dfs_by_seed
