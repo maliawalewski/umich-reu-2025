@@ -181,12 +181,6 @@ def plot_runtime_ratio_cactus(
 
     ax.plot(px, ys, linewidth=1.8, label=label)
 
-    label = f"Agent / {baseline_name}"
-    if np.isfinite(med):
-        label += f" (median {med:.3g})"
-
-    ax.plot(px, ys, linewidth=1.8, label=label)
-
     ax.axhline(
         1.0,
         linestyle="--",

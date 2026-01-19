@@ -1,6 +1,5 @@
 from __future__ import annotations
-
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Tuple
 import numpy as np
 import pandas as pd
 
@@ -31,22 +30,30 @@ def _fmt_percent_iqr(med: float, q1: float, q3: float, fmt: str = "{:.3f}") -> s
         return "NA"
     return f"{fmt.format(med)}% [IQR {fmt.format(q1)}%, {fmt.format(q3)}%]"
 
-
-def _fmt_reward_iqr(med: float, q1: float, q3: float, fmt: str = "{:.6g}") -> str:
-    if not np.isfinite(med):
+def _fmt_percent(x: float, fmt: str = "{:.3f}") -> str:
+    if not np.isfinite(x):
         return "NA"
-    return f"{fmt.format(med)} (reward) [IQR {fmt.format(q1)}, {fmt.format(q3)}]"
+    return f"{fmt.format(x)}%"
 
 
-def _comp_stats(
-    x: np.ndarray,
-    y: np.ndarray,
+def _fmt_percent_pm(
+    m: float, s: float, fmt_m: str = "{:.3f}", fmt_s: str = "{:.3f}"
+) -> str:
+    if not np.isfinite(m):
+        return "NA"
+    if not np.isfinite(s):
+        return f"{fmt_m.format(m)}% +- NA"
+    return f"{fmt_m.format(m)}% +- {fmt_s.format(s)}%"
+
+def _comp_stats_time(
+    x_time: np.ndarray,
+    y_time: np.ndarray,
     eps: float = 1e-12,
     tie_atol: float = 1e-12,
 ) -> Dict[str, float]:
-
-    x = np.asarray(x, dtype=float)
-    y = np.asarray(y, dtype=float)
+    
+    x = np.asarray(x_time, dtype=float)
+    y = np.asarray(y_time, dtype=float)
 
     ok = np.isfinite(x) & np.isfinite(y)
     x = x[ok]
@@ -64,17 +71,17 @@ def _comp_stats(
             "loss_rate_percent": float("nan"),
             "mean_improve_percent_on_wins": float("nan"),
             "mean_degrade_percent_on_losses": float("nan"),
-            "median_delta_reward": float("nan"),
-            "mean_delta_reward": float("nan"),
+            "median_delta_time_s": float("nan"),
+            "mean_delta_time_s": float("nan"),
         }
 
-    delta = x - y
+    delta = x - y  # seconds; negative means x faster than y
     denom = np.maximum(np.abs(y), eps)
-    pct = 100.0 * (delta / denom)
+    pct = 100.0 * ((y - x) / denom)  # positive = speedup, negative = slowdown
 
     tie = np.isclose(x, y, atol=tie_atol, rtol=0.0)
-    win = (x > y) & (~tie)
-    loss = (x < y) & (~tie)
+    win = (x < y) & (~tie)
+    loss = (x > y) & (~tie)
 
     n_win = int(win.sum())
     n_tie = int(tie.sum())
@@ -97,16 +104,17 @@ def _comp_stats(
         "mean_degrade_percent_on_losses": (
             float(pct_loss.mean()) if pct_loss.size else float("nan")
         ),
-        "median_delta_reward": float(np.median(delta)),
-        "mean_delta_reward": float(delta.mean()),
+        "median_delta_time_s": float(np.median(delta)),
+        "mean_delta_time_s": float(delta.mean()),
     }
 
 
-def compute_table_a_reward(
+def compute_table_a_runtime(
     dfs_by_seed: Dict[int, Dict[str, pd.DataFrame]],
     eps: float = 1e-12,
     tie_atol: float = 1e-12,
 ) -> Dict[str, Any]:
+
 
     per_seed: Dict[int, Dict[str, float]] = {}
 
@@ -122,23 +130,23 @@ def compute_table_a_reward(
 
         df = dfs_by_seed[seed]["test_metrics"].copy()
 
-        required = {"agent_reward", "grevlex_reward", "deglex_reward"}
+        required = {"agent_time_s", "grevlex_time_s", "deglex_time_s"}
         missing = required - set(df.columns)
         if missing:
             raise ValueError(f"Seed {seed} test_metrics missing columns: {missing}")
 
         df = df.replace([np.inf, -np.inf], np.nan).dropna(subset=list(required))
 
-        ar = df["agent_reward"].to_numpy(float)
-        gr = df["grevlex_reward"].to_numpy(float)
-        dr = df["deglex_reward"].to_numpy(float)
+        at = df["agent_time_s"].to_numpy(float)
+        gt = df["grevlex_time_s"].to_numpy(float)
+        dt = df["deglex_time_s"].to_numpy(float)
 
-        ag_gr = _comp_stats(ar, gr, eps=eps, tie_atol=tie_atol)
-        ag_de = _comp_stats(ar, dr, eps=eps, tie_atol=tie_atol)
-        de_gr = _comp_stats(dr, gr, eps=eps, tie_atol=tie_atol)
+        ag_gr = _comp_stats_time(at, gt, eps=eps, tie_atol=tie_atol)
+        ag_de = _comp_stats_time(at, dt, eps=eps, tie_atol=tie_atol)
+        de_gr = _comp_stats_time(dt, gt, eps=eps, tie_atol=tie_atol)
 
         def pack(prefix: str, stats: Dict[str, float]) -> Dict[str, float]:
-            out = {
+            return {
                 f"{prefix}_n": float(stats["n"]),
                 f"{prefix}_n_win": float(stats["n_win"]),
                 f"{prefix}_n_tie": float(stats["n_tie"]),
@@ -152,26 +160,25 @@ def compute_table_a_reward(
                 f"{prefix}_mean_degrade_percent_on_losses": stats[
                     "mean_degrade_percent_on_losses"
                 ],
-                f"{prefix}_median_delta_reward": stats["median_delta_reward"],
-                f"{prefix}_mean_delta_reward": stats["mean_delta_reward"],
+                f"{prefix}_median_delta_time_s": stats["median_delta_time_s"],
+                f"{prefix}_mean_delta_time_s": stats["mean_delta_time_s"],
             }
-            return out
 
         per_seed[seed] = {"n_test": float(len(df))}
         per_seed[seed].update(pack("agent_vs_grevlex", ag_gr))
         per_seed[seed].update(pack("agent_vs_deglex", ag_de))
         per_seed[seed].update(pack("deglex_vs_grevlex", de_gr))
 
-        pooled_acc["agent_vs_grevlex"]["x"].append(ar)
-        pooled_acc["agent_vs_grevlex"]["y"].append(gr)
-        pooled_acc["agent_vs_deglex"]["x"].append(ar)
-        pooled_acc["agent_vs_deglex"]["y"].append(dr)
-        pooled_acc["deglex_vs_grevlex"]["x"].append(dr)
-        pooled_acc["deglex_vs_grevlex"]["y"].append(gr)
+        pooled_acc["agent_vs_grevlex"]["x"].append(at)
+        pooled_acc["agent_vs_grevlex"]["y"].append(gt)
+        pooled_acc["agent_vs_deglex"]["x"].append(at)
+        pooled_acc["agent_vs_deglex"]["y"].append(dt)
+        pooled_acc["deglex_vs_grevlex"]["x"].append(dt)
+        pooled_acc["deglex_vs_grevlex"]["y"].append(gt)
 
     seeds = sorted(per_seed.keys())
     if not seeds:
-        raise ValueError("No seeds with test_metrics available to compute Table A.")
+        raise ValueError("No seeds with test_metrics available to compute Table A (runtime).")
 
     by_seed_agg: Dict[str, Tuple[float, float]] = {}
     metric_keys = [k for k in per_seed[seeds[0]].keys() if k != "n_test"]
@@ -190,7 +197,8 @@ def compute_table_a_reward(
             if pooled_acc[pref]["y"]
             else np.array([], dtype=float)
         )
-        st = _comp_stats(x_all, y_all, eps=eps, tie_atol=tie_atol)
+
+        st = _comp_stats_time(x_all, y_all, eps=eps, tie_atol=tie_atol)
 
         pooled.update(
             {
@@ -207,8 +215,8 @@ def compute_table_a_reward(
                 f"{pref}_mean_degrade_percent_on_losses": st[
                     "mean_degrade_percent_on_losses"
                 ],
-                f"{pref}_median_delta_reward": st["median_delta_reward"],
-                f"{pref}_mean_delta_reward": st["mean_delta_reward"],
+                f"{pref}_median_delta_time_s": st["median_delta_time_s"],
+                f"{pref}_mean_delta_time_s": st["mean_delta_time_s"],
             }
         )
 
@@ -224,34 +232,24 @@ def compute_table_a_reward(
     }
 
 
-def _fmt_percent(x: float, fmt: str = "{:.3f}") -> str:
-    if not np.isfinite(x):
-        return "NA"
-    return f"{fmt.format(x)}%"
-
-
-def _fmt_percent_pm(
-    m: float, s: float, fmt_m: str = "{:.3f}", fmt_s: str = "{:.3f}"
-) -> str:
-    if not np.isfinite(m):
-        return "NA"
-    if not np.isfinite(s):
-        return f"{fmt_m.format(m)}% +- NA"
-    return f"{fmt_m.format(m)}% +- {fmt_s.format(s)}%"
-
-
-def _fmt_reward_pm(
+def _fmt_time_pm(
     m: float, s: float, fmt_m: str = "{:.6g}", fmt_s: str = "{:.6g}"
 ) -> str:
     if not np.isfinite(m):
         return "NA"
     if not np.isfinite(s):
-        return f"{fmt_m.format(m)} (reward) +- NA"
-    return f"{fmt_m.format(m)} (reward) +- {fmt_s.format(s)} (reward)"
+        return f"{fmt_m.format(m)} (s) +- NA"
+    return f"{fmt_m.format(m)} (s) +- {fmt_s.format(s)} (s)"
 
 
-def _print_block_pooled(
-    title: str, prefix: str, pooled: Dict[str, float], show_debug_reward_deltas: bool
+def _fmt_time_iqr(med: float, q1: float, q3: float, fmt: str = "{:.6g}") -> str:
+    if not np.isfinite(med):
+        return "NA"
+    return f"{fmt.format(med)} (s) [IQR {fmt.format(q1)}, {fmt.format(q3)}]"
+
+
+def _print_block_pooled_time(
+    title: str, prefix: str, pooled: Dict[str, float], show_debug_time_deltas: bool
 ) -> None:
     n = int(pooled.get(f"{prefix}_n", 0))
     nwin = int(pooled.get(f"{prefix}_n_win", 0))
@@ -265,26 +263,26 @@ def _print_block_pooled(
     deg = pooled.get(f"{prefix}_mean_degrade_percent_on_losses", float("nan"))
 
     print(f"{title}:")
-    print(f"  n_total={n} (wins={nwin}, ties={ntie}, losses={nloss})")
-    print(f"  Win rate (percent):                   {_fmt_percent(win)}")
+    print(f"  n_total={n} (faster={nwin}, ties={ntie}, slower={nloss})")
+    print(f"  Faster rate (percent):                {_fmt_percent(win)}")
     print(f"  Tie rate (percent):                   {_fmt_percent(tie)}")
-    print(f"  Loss rate (percent):                  {_fmt_percent(loss)}")
-    print(f"  Mean improvement on wins only (%):    {_fmt_percent(imp)}")
-    print(f"  Mean degradation on losses only (%):  {_fmt_percent(deg)}")
+    print(f"  Slower rate (percent):                {_fmt_percent(loss)}")
+    print(f"  Mean speedup on faster only (%):      {_fmt_percent(imp)}")
+    print(f"  Mean slowdown on slower only (%):     {_fmt_percent(deg)}")
 
-    if show_debug_reward_deltas:
-        med = pooled.get(f"{prefix}_median_delta_reward", float("nan"))
-        mean = pooled.get(f"{prefix}_mean_delta_reward", float("nan"))
-        print(f"  [debug] Median delta reward:          {med:.6g} (reward)")
-        print(f"  [debug] Mean delta reward:            {mean:.6g} (reward)")
+    if show_debug_time_deltas:
+        med = pooled.get(f"{prefix}_median_delta_time_s", float("nan"))
+        mean = pooled.get(f"{prefix}_mean_delta_time_s", float("nan"))
+        print(f"  [debug] Median delta time:            {med:.6g} (s)  (agent - baseline)")
+        print(f"  [debug] Mean delta time:              {mean:.6g} (s)  (agent - baseline)")
 
 
-def _print_block_by_seed_iqr(
+def _print_block_by_seed_iqr_time(
     title: str,
     prefix: str,
     per_seed: Dict[int, Dict[str, float]],
     seeds: List[int],
-    show_debug_reward_deltas: bool,
+    show_debug_time_deltas: bool,
 ) -> None:
     def vals(key: str) -> List[float]:
         return [per_seed[s].get(f"{prefix}_{key}", float("nan")) for s in seeds]
@@ -296,24 +294,24 @@ def _print_block_by_seed_iqr(
     deg_med, deg_q1, deg_q3, _, _ = _median_iqr(vals("mean_degrade_percent_on_losses"))
 
     print(f"{title}:")
-    print(f"  Win rate (percent):                   {_fmt_percent_iqr(win_med, win_q1, win_q3)}")
+    print(f"  Faster rate (percent):                {_fmt_percent_iqr(win_med, win_q1, win_q3)}")
     print(f"  Tie rate (percent):                   {_fmt_percent_iqr(tie_med, tie_q1, tie_q3)}")
-    print(f"  Loss rate (percent):                  {_fmt_percent_iqr(loss_med, loss_q1, loss_q3)}")
-    print(f"  Mean improvement on wins only (%):    {_fmt_percent_iqr(imp_med, imp_q1, imp_q3)}")
-    print(f"  Mean degradation on losses only (%):  {_fmt_percent_iqr(deg_med, deg_q1, deg_q3)}")
+    print(f"  Slower rate (percent):                {_fmt_percent_iqr(loss_med, loss_q1, loss_q3)}")
+    print(f"  Mean speedup on faster only (%):      {_fmt_percent_iqr(imp_med, imp_q1, imp_q3)}")
+    print(f"  Mean slowdown on slower only (%):     {_fmt_percent_iqr(deg_med, deg_q1, deg_q3)}")
 
-    if show_debug_reward_deltas:
-        med_med, med_q1, med_q3, _, _ = _median_iqr(vals("median_delta_reward"))
-        mean_med, mean_q1, mean_q3, _, _ = _median_iqr(vals("mean_delta_reward"))
-        print(f"  [debug] Median delta reward:          {_fmt_reward_iqr(med_med, med_q1, med_q3)}")
-        print(f"  [debug] Mean delta reward:            {_fmt_reward_iqr(mean_med, mean_q1, mean_q3)}")
+    if show_debug_time_deltas:
+        med_med, med_q1, med_q3, _, _ = _median_iqr(vals("median_delta_time_s"))
+        mean_med, mean_q1, mean_q3, _, _ = _median_iqr(vals("mean_delta_time_s"))
+        print(f"  [debug] Median delta time:            {_fmt_time_iqr(med_med, med_q1, med_q3)}  (agent - baseline)")
+        print(f"  [debug] Mean delta time:              {_fmt_time_iqr(mean_med, mean_q1, mean_q3)}  (agent - baseline)")
 
 
-def _print_block_by_seed(
+def _print_block_by_seed_time(
     title: str,
     prefix: str,
     agg: Dict[str, Tuple[float, float]],
-    show_debug_reward_deltas: bool,
+    show_debug_time_deltas: bool,
 ) -> None:
     def get_pm(key: str) -> Tuple[float, float]:
         return agg.get(f"{prefix}_{key}", (float("nan"), float("nan")))
@@ -325,85 +323,98 @@ def _print_block_by_seed(
     deg_m, deg_s = get_pm("mean_degrade_percent_on_losses")
 
     print(f"{title}:")
-    print(f"  Win rate (percent):                   {_fmt_percent_pm(win_m, win_s)}")
+    print(f"  Faster rate (percent):                {_fmt_percent_pm(win_m, win_s)}")
     print(f"  Tie rate (percent):                   {_fmt_percent_pm(tie_m, tie_s)}")
-    print(f"  Loss rate (percent):                  {_fmt_percent_pm(loss_m, loss_s)}")
-    print(f"  Mean improvement on wins only (%):    {_fmt_percent_pm(imp_m, imp_s)}")
-    print(f"  Mean degradation on losses only (%):  {_fmt_percent_pm(deg_m, deg_s)}")
+    print(f"  Slower rate (percent):                {_fmt_percent_pm(loss_m, loss_s)}")
+    print(f"  Mean speedup on faster only (%):      {_fmt_percent_pm(imp_m, imp_s)}")
+    print(f"  Mean slowdown on slower only (%):     {_fmt_percent_pm(deg_m, deg_s)}")
 
-    if show_debug_reward_deltas:
-        med_m, med_s = get_pm("median_delta_reward")
-        mean_m, mean_s = get_pm("mean_delta_reward")
-        print(f"  [debug] Median delta reward:          {_fmt_reward_pm(med_m, med_s)}")
-        print(
-            f"  [debug] Mean delta reward:            {_fmt_reward_pm(mean_m, mean_s)}"
-        )
+    if show_debug_time_deltas:
+        med_m, med_s = get_pm("median_delta_time_s")
+        mean_m, mean_s = get_pm("mean_delta_time_s")
+        print(f"  [debug] Median delta time:            {_fmt_time_pm(med_m, med_s)}  (agent - baseline)")
+        print(f"  [debug] Mean delta time:              {_fmt_time_pm(mean_m, mean_s)}  (agent - baseline)")
 
 
-def print_table_a_both_modes(
-    table_a: Dict[str, Any],
+def print_table_a_runtime_both_modes(
+    table_a_time: Dict[str, Any],
     include_baseline_sanity: bool = False,
     show_per_seed: bool = True,
-    show_debug_reward_deltas: bool = False,
+    show_debug_time_deltas: bool = False,
+    show_mean_pm_block: bool = False,
 ) -> None:
-    seeds = table_a["seeds"]
+    """
+    Mirrors print_table_a_both_modes, but for runtime.
 
-    print("----Table A (MAIN, percent-based; POOLED over all test instances)----")
+    show_mean_pm_block: if True, also prints mean +- std across seeds.
+                        (Your reward printer had a minor bug referencing `agg` without defining it;
+                         here we wire it correctly via `table_a_time["by_seed_agg"]`.)
+    """
+    seeds = table_a_time["seeds"]
+    pooled = table_a_time["pooled"]
+    per_seed = table_a_time["per_seed"]
+    agg = table_a_time["by_seed_agg"]
+
+    print("----Table A (RUNTIME MAIN, percent-based; POOLED over all test instances)----")
     print(
-        f"Seeds used: {seeds} | n_seeds={table_a['n_seeds']} | n_test_total={table_a['n_test_total']}"
+        f"Seeds used: {seeds} | n_seeds={table_a_time['n_seeds']} | n_test_total={table_a_time['n_test_total']}"
     )
-    pooled = table_a["pooled"]
 
-    _print_block_pooled(
-        "Agent vs GrevLex", "agent_vs_grevlex", pooled, show_debug_reward_deltas
+    _print_block_pooled_time(
+        "Agent vs GrevLex (time)", "agent_vs_grevlex", pooled, show_debug_time_deltas
     )
-    _print_block_pooled(
-        "Agent vs DegLex", "agent_vs_deglex", pooled, show_debug_reward_deltas
+    _print_block_pooled_time(
+        "Agent vs DegLex (time)", "agent_vs_deglex", pooled, show_debug_time_deltas
     )
     if include_baseline_sanity:
-        _print_block_pooled(
-            "DegLex vs GrevLex (sanity check)",
+        _print_block_pooled_time(
+            "DegLex vs GrevLex (time; sanity check)",
             "deglex_vs_grevlex",
             pooled,
-            show_debug_reward_deltas,
+            show_debug_time_deltas,
         )
     print()
 
-    print("----Table A (APPENDIX; median [IQR] across seeds)----")
-    print(f"Seeds used: {seeds} | n_seeds={table_a['n_seeds']}")
+    print("----Table A (RUNTIME APPENDIX; median [IQR] across seeds)----")
+    print(f"Seeds used: {seeds} | n_seeds={table_a_time['n_seeds']}")
 
-    per_seed = table_a["per_seed"]
-
-    _print_block_by_seed_iqr(
-        "Agent vs GrevLex", "agent_vs_grevlex", per_seed, seeds, show_debug_reward_deltas
+    _print_block_by_seed_iqr_time(
+        "Agent vs GrevLex (time)", "agent_vs_grevlex", per_seed, seeds, show_debug_time_deltas
     )
-    _print_block_by_seed_iqr(
-        "Agent vs DegLex", "agent_vs_deglex", per_seed, seeds, show_debug_reward_deltas
+    _print_block_by_seed_iqr_time(
+        "Agent vs DegLex (time)", "agent_vs_deglex", per_seed, seeds, show_debug_time_deltas
     )
     if include_baseline_sanity:
-        _print_block_by_seed_iqr(
-            "DegLex vs GrevLex (sanity check)",
+        _print_block_by_seed_iqr_time(
+            "DegLex vs GrevLex (time; sanity check)",
             "deglex_vs_grevlex",
             per_seed,
             seeds,
-            show_debug_reward_deltas,
-        )
-    print()
-    
-    agg = table_a["by_seed_agg"]
-    if include_baseline_sanity:
-        _print_block_by_seed(
-            "DegLex vs GrevLex (sanity check)",
-            "deglex_vs_grevlex",
-            agg,
-            show_debug_reward_deltas,
+            show_debug_time_deltas,
         )
     print()
 
+    if show_mean_pm_block:
+        print("----Table A (RUNTIME; mean +- std across seeds)----")
+        _print_block_by_seed_time(
+            "Agent vs GrevLex (time)", "agent_vs_grevlex", agg, show_debug_time_deltas
+        )
+        _print_block_by_seed_time(
+            "Agent vs DegLex (time)", "agent_vs_deglex", agg, show_debug_time_deltas
+        )
+        if include_baseline_sanity:
+            _print_block_by_seed_time(
+                "DegLex vs GrevLex (time; sanity check)",
+                "deglex_vs_grevlex",
+                agg,
+                show_debug_time_deltas,
+            )
+        print()
+
     if show_per_seed:
-        print("Per-seed breakdown (percent-based):")
+        print("Per-seed breakdown (runtime; percent-based):")
         for s in seeds:
-            d = table_a["per_seed"][s]
+            d = per_seed[s]
             print(f"  Seed {s} (n_test={int(d['n_test'])})")
 
             prefixes = ["agent_vs_grevlex", "agent_vs_deglex"]
@@ -419,14 +430,15 @@ def print_table_a_both_modes(
 
                 msg = (
                     f"    {pref}: "
-                    f"win={win:.3f}%, tie={tie:.3f}%, loss={loss:.3f}%, "
-                    f"improve_win_only={imp:.3f}%, degrade_loss_only={deg:.3f}%"
+                    f"faster={win:.3f}%, tie={tie:.3f}%, slower={loss:.3f}%, "
+                    f"speedup_faster_only={imp:.3f}%, slowdown_slower_only={deg:.3f}%"
                 )
 
-                if show_debug_reward_deltas:
-                    med = d.get(pref + "_median_delta_reward", float("nan"))
-                    mean = d.get(pref + "_mean_delta_reward", float("nan"))
-                    msg += f", [debug] med_delta={med:.6g} (reward), mean_delta={mean:.6g} (reward)"
+                if show_debug_time_deltas:
+                    med = d.get(pref + "_median_delta_time_s", float("nan"))
+                    mean = d.get(pref + "_mean_delta_time_s", float("nan"))
+                    msg += f", [debug] med_delta={med:.6g} (s), mean_delta={mean:.6g} (s)  (agent-baseline)"
 
                 print(msg)
         print()
+

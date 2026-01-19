@@ -6,6 +6,7 @@ from typing import Dict
 import pandas as pd
 
 from table_a_reward import compute_table_a_reward, print_table_a_both_modes
+from table_a_runtime import compute_table_a_runtime, print_table_a_runtime_both_modes
 from weights_table import weights_table_from_dfs
 from training_plot import make_training_plot
 from test_delta_plots import make_test_delta_figs
@@ -202,6 +203,15 @@ def main():
         show_per_seed=True,
         show_debug_reward_deltas=args.show_debug_reward_deltas,
     )
+    
+    table_a_time = compute_table_a_runtime(dfs_by_seed)
+    print_table_a_runtime_both_modes(
+        table_a_time,
+        include_baseline_sanity=args.include_baseline_sanity,
+        show_per_seed=True,
+        show_debug_time_deltas=False,
+    )
+
 
     weights_table_from_dfs(dfs_by_seed, action_scale=1e3, show_int=True)
 
