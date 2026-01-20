@@ -17,7 +17,9 @@ def _to_action_int(
     return a
 
 
-def _implied_order_str(vars_: List[str], weights_int: np.ndarray, prefix: str = "x") -> str:
+def _implied_order_str(
+    vars_: List[str], weights_int: np.ndarray, prefix: str = "x"
+) -> str:
     vars_ = [str(v) for v in vars_]
     wi = np.asarray(weights_int, dtype=int)
     if wi.size == 0:
@@ -73,7 +75,7 @@ def compute_weights_table(
                 "vars": vars_,
                 "weights_float": weights_float.tolist(),
                 "weights_int": weights_int.tolist(),
-                "implied_order": implied_order, 
+                "implied_order": implied_order,
             }
         )
 
@@ -126,4 +128,3 @@ def weights_table_from_dfs(
     tbl = compute_weights_table(dfs_by_seed, action_scale=action_scale)
     print_weights_table(tbl, show_int=show_int)
     return tbl
-

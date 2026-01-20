@@ -8,33 +8,33 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
+
 def rcparams():
-    plt.rcParams.update({
-        "font.family": "serif",
-        "font.serif": ["FreeSerif", "STIXGeneral", "DejaVu Serif"],
-        "mathtext.fontset": "stix",
+    plt.rcParams.update(
+        {
+            "font.family": "serif",
+            "font.serif": ["FreeSerif", "STIXGeneral", "DejaVu Serif"],
+            "mathtext.fontset": "stix",
+            "font.size": 8,
+            "axes.labelsize": 8,
+            "axes.titlesize": 8,
+            "xtick.labelsize": 8,
+            "ytick.labelsize": 8,
+            "font.weight": "normal",
+            "axes.labelweight": "normal",
+            "text.color": "black",
+            "axes.labelcolor": "black",
+            "xtick.color": "black",
+            "ytick.color": "black",
+            "axes.edgecolor": "black",
+            "axes.linewidth": 0.8,
+            "lines.linewidth": 1.2,
+            "pdf.fonttype": 42,
+            "ps.fonttype": 42,
+            "savefig.dpi": 300,
+        }
+    )
 
-        "font.size": 8,
-        "axes.labelsize": 8,
-        "axes.titlesize": 8,
-        "xtick.labelsize": 8,
-        "ytick.labelsize": 8,
-
-        "font.weight": "normal",
-        "axes.labelweight": "normal",
-
-        "text.color": "black",
-        "axes.labelcolor": "black",
-        "xtick.color": "black",
-        "ytick.color": "black",
-        "axes.edgecolor": "black",
-
-        "axes.linewidth": 0.8,
-        "lines.linewidth": 1.2,
-        "pdf.fonttype": 42,
-        "ps.fonttype": 42,
-        "savefig.dpi": 300,
-    })
 
 def robust_limits(a: np.ndarray, lo=5.0, hi=95.0, pad=0.10):
     a = np.asarray(a, dtype=float)
@@ -100,8 +100,8 @@ def make_training_plot(
     band: Literal["iqr", "std", "none"] = "iqr",
     legend: bool = True,
     inset: bool = False,
-    inset_x_frac: float = 0.70,     # show last 70% of x by default
-    inset_ylim: Optional[tuple[float, float]] = None, 
+    inset_x_frac: float = 0.70,  # show last 70% of x by default
+    inset_ylim: Optional[tuple[float, float]] = None,
 ) -> None:
     """
     mode="raw":
@@ -275,7 +275,7 @@ def make_training_plot(
             [0.0, 0.0],
             linestyle="--",
             linewidth=1.0,
-            color="black", 
+            color="black",
             label="GrevLex" if legend else "_nolegend_",
         )
 
@@ -294,7 +294,7 @@ def make_training_plot(
 
     if title:
         ax.set_title(title)
-    
+
     if inset:
         axins = inset_axes(ax, width="33%", height="33%", loc="upper right")
         axins.set_xticks([])
@@ -308,13 +308,29 @@ def make_training_plot(
         axins.plot(x_vals, agent_mean, linewidth=1.2)
 
         if mode == "raw":
-            axins.plot(x_vals, grev_mean_s, linestyle="--", linewidth=0.9, color="black")
+            axins.plot(
+                x_vals, grev_mean_s, linestyle="--", linewidth=0.9, color="black"
+            )
             if include_deglex_reference:
-                axins.plot(x_vals, deg_mean_s, linestyle="--", linewidth=0.9, color="orange")
+                axins.plot(
+                    x_vals, deg_mean_s, linestyle="--", linewidth=0.9, color="orange"
+                )
         else:
-            axins.plot([x_vals[0], x_vals[-1]], [0.0, 0.0], linestyle="--", linewidth=0.9, color="black")
+            axins.plot(
+                [x_vals[0], x_vals[-1]],
+                [0.0, 0.0],
+                linestyle="--",
+                linewidth=0.9,
+                color="black",
+            )
             if include_deglex_reference:
-                axins.plot(x_vals, deg_delta_mean_s, linestyle="--", linewidth=0.9, color="orange")
+                axins.plot(
+                    x_vals,
+                    deg_delta_mean_s,
+                    linestyle="--",
+                    linewidth=0.9,
+                    color="orange",
+                )
 
         axins.set_xlim(x0, x1)
 
@@ -323,7 +339,6 @@ def make_training_plot(
 
         axins.grid(True, linewidth=0.4, alpha=0.25)
         axins.tick_params(axis="both", labelsize=6)
-
 
     format_axes(ax)
     if legend:

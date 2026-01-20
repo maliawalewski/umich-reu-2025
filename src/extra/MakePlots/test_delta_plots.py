@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 
 import numpy as np
 import pandas as pd
@@ -50,7 +50,7 @@ def _collect_deltas(
     baseline="deglex" : agent_reward - deglex_reward
     """
     baseline_reward_col = f"{baseline}_reward"
-    all_d = []
+    all_d: List[np.ndarray] = []
     for seed, kinds in sorted(dfs_by_seed.items()):
         if "test_metrics" not in kinds:
             continue
@@ -74,55 +74,92 @@ def plot_delta_pmf(
     outpath: Path,
     *,
     round_to: Optional[float] = None,
-    top_k: int = 6,
-    min_prob: float = 0.005,  # 0.5% cutoff
+    top_k: int = 15,
+    min_prob: Optional[float] = None,  # set None to disable hard cutoff
     title: Optional[str] = None,
     figsize=(3.25, 2.35),
     baseline_name: str = "GrevLex",
     delta_fmt: str = ".4g",
-    tie_tol: float = 0.0, 
+    tie_tol: float = 0.0,
     baseline_key: str = "grevlex",
+    # new behavior: keep largest-mass atoms up to top_k, or until target_mass reached (whichever first)
+    target_mass: float = 0.90,
+    show_other_unique: bool = True,
 ) -> None:
+    """
+    PMF-style barplot for reward deltas.
 
+    Changes vs your original:
+      1) tie_tol now actually buckets near-ties into exactly 0.0 (affects PMF, not just labels).
+      2) selection is by descending probability (not iteration order), with optional cumulative-mass target.
+      3) min_prob no longer silently causes "Other" to dominate; you can disable it (None) or keep as a guardrail.
+      4) "Other" label can include how many distinct values it hides.
+    """
     rcparams()
     deltas = _collect_deltas(dfs_by_seed, baseline=baseline_key)
 
     v = np.asarray(deltas, dtype=float)
     v = v[np.isfinite(v)]
+
+    # (1) collapse near-ties into a single atom at 0.0
+    if tie_tol is not None and tie_tol > 0:
+        v[np.abs(v) <= tie_tol] = 0.0
+
+    # optional rounding/bucketing
     if round_to is not None and round_to > 0:
         v = np.round(v / round_to) * round_to
+
+    if v.size == 0:
+        raise RuntimeError("No finite deltas to plot.")
 
     s = pd.Series(v)
     counts = s.value_counts(dropna=True)
     n = float(counts.sum())
-    probs = counts / n
+    probs = (counts / n).sort_values(ascending=False)
 
-    kept: list[tuple[float, float]] = []
-    other_mass = 0.0
-    for delta_val, p in probs.items():
+    # (2) keep by mass, not by arbitrary iteration order
+    kept: List[Tuple[float, float]] = []
+    cum = 0.0
+    for dv, p in probs.items():
         p = float(p)
-        dv = float(delta_val)
-        if (p >= min_prob) and (len(kept) < top_k):
-            kept.append((dv, p))
-        else:
-            other_mass += p
+        dv = float(dv)
 
-    if len(kept) == 0 and len(probs) > 0:
-        dv = float(probs.index[0])
-        p = float(probs.iloc[0])
+        # optional hard cutoff if you still want it
+        if (min_prob is not None) and (p < float(min_prob)):
+            continue
+
         kept.append((dv, p))
-        other_mass = float(1.0 - p)
+        cum += p
+        if len(kept) >= int(top_k) or cum >= float(target_mass):
+            break
 
+    # ensure at least one item is shown
+    if len(kept) == 0 and len(probs) > 0:
+        dv0 = float(probs.index[0])
+        p0 = float(probs.iloc[0])
+        kept = [(dv0, p0)]
+        cum = p0
+
+    other_mass = float(max(0.0, 1.0 - cum))
+
+    # sort by delta value for nicer left-to-right interpretation on y-axis
     kept.sort(key=lambda t: t[0])
 
     def fmt_delta(dv: float) -> str:
-        if abs(dv) <= tie_tol:
+        # Note: after bucketing, near-ties are literally 0.0 (if tie_tol>0),
+        # so this mostly just makes the label friendly.
+        if tie_tol is not None and tie_tol > 0 and abs(dv) <= tie_tol:
             return "0 (tie)"
         return format(dv, delta_fmt)
 
-    rows = [(fmt_delta(dv), p) for dv, p in kept]
+    rows: List[Tuple[str, float]] = [(fmt_delta(dv), p) for dv, p in kept]
+
     if other_mass > 0:
-        rows.append(("Other", other_mass))
+        if show_other_unique:
+            other_unique = int(max(0, len(probs) - len(kept)))
+            rows.append((f"Other ({other_unique} values)", other_mass))
+        else:
+            rows.append(("Other", other_mass))
 
     labels = [lab for lab, _ in rows]
     masses = np.array([p for _, p in rows], dtype=float)
@@ -170,25 +207,34 @@ def make_test_delta_figs(
     baseset: str,
     round_to: Optional[float] = None,
 ) -> None:
-
     outdir.mkdir(parents=True, exist_ok=True)
+
+    # You can tune tie_tol here if you want; 0.0 keeps old behavior.
+    # A common choice if you have near-float noise is tie_tol = round_to (when provided).
+    tie_tol = float(round_to) if (round_to is not None and round_to > 0) else 0.0
 
     plot_delta_pmf(
         dfs_by_seed,
         outdir / f"delta_pmf_vs_degrevlex_{baseset}.pdf",
         round_to=round_to,
-        top_k=6,
-        min_prob=0.005,
+        top_k=15,
+        min_prob=None,  # disable hard cutoff so "Other" doesn't eat mass unfairly
+        target_mass=0.90,  # show enough atoms to explain 90% of mass (capped by top_k)
+        tie_tol=tie_tol,  # actually bucket near-ties
         baseline_key="grevlex",
         baseline_name="GrevLex",
+        show_other_unique=True,
     )
 
     plot_delta_pmf(
         dfs_by_seed,
         outdir / f"delta_pmf_vs_deglex_{baseset}.pdf",
         round_to=round_to,
-        top_k=6,
-        min_prob=0.005,
+        top_k=15,
+        min_prob=None,
+        target_mass=0.90,
+        tie_tol=tie_tol,
         baseline_key="deglex",
         baseline_name="GrLex",
+        show_other_unique=True,
     )

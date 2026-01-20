@@ -12,6 +12,7 @@ from training_plot import make_training_plot
 from test_delta_plots import make_test_delta_figs
 from runtime_ecdf import make_runtime_ecdf_figs
 from cactus_plot import make_runtime_cactus_figs
+from reward_ecdf import make_reward_ecdf_figs
 
 KIND_SUFFIXES = {
     "final_agent_weight_vector": "_final_agent_weight_vector.csv",
@@ -139,12 +140,20 @@ def main():
         help="Moving average window (in x-axis points).",
     )
     ap.add_argument("--make-test-delta-plots", action="store_true")
-    ap.add_argument("--delta-round", type=float, default=None, help="optional rounding for delta plots, e.g. 1e-6")
+    ap.add_argument(
+        "--delta-round",
+        type=float,
+        default=None,
+        help="optional rounding for delta plots, e.g. 1e-6",
+    )
     ap.add_argument("--make-runtime-ecdf", action="store_true")
     ap.add_argument("--runtime-ecdf-logx", action="store_true")
-    ap.add_argument("--runtime-ecdf-clip", type=float, default=None, help="If set, clip ECDF x-range to [q, 1-q], e.g. 0.001")
-
-
+    ap.add_argument(
+        "--runtime-ecdf-clip",
+        type=float,
+        default=None,
+        help="If set, clip ECDF x-range to [q, 1-q], e.g. 0.001",
+    )
 
     args = ap.parse_args()
 
@@ -203,7 +212,7 @@ def main():
         show_per_seed=True,
         show_debug_reward_deltas=args.show_debug_reward_deltas,
     )
-    
+
     table_a_time = compute_table_a_runtime(dfs_by_seed)
     print_table_a_runtime_both_modes(
         table_a_time,
@@ -211,7 +220,6 @@ def main():
         show_per_seed=True,
         show_debug_time_deltas=False,
     )
-
 
     weights_table_from_dfs(dfs_by_seed, action_scale=1e3, show_int=True)
 
@@ -238,7 +246,19 @@ def main():
             band="iqr",
         )
         print(f"Wrote training plot: {outpath}")
-    
+
+    outdir = Path(args.outdir)
+    if not outdir.is_absolute():
+        outdir = (root_dir / outdir).resolve()
+
+    make_reward_ecdf_figs(
+        dfs_by_seed,
+        outdir,
+        baseset=args.baseset,
+        mode="pct",
+    )
+    print(f"Wrote reward ECDFs to {outdir}")
+
     if args.make_test_delta_plots:
         outdir = Path(args.outdir)
         if not outdir.is_absolute():
@@ -271,10 +291,11 @@ def main():
             x_clip_quantiles=clip,
         )
         print(f"Wrote runtime ECDFs to {outdir}")
-    
+
     outdir = Path(args.outdir)
     if not outdir.is_absolute():
         outdir = (root_dir / outdir).resolve()
+
     make_runtime_cactus_figs(
         dfs_by_seed,
         outdir,
@@ -283,7 +304,6 @@ def main():
         y_clip_quantiles=(0.01, 0.99),
         per_seed_overlay=True,
     )
-
 
     return dfs_by_seed
 

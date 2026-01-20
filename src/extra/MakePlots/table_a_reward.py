@@ -18,6 +18,7 @@ def _mean_std(vals: List[float]) -> Tuple[float, float]:
         return (float(x[0]), 0.0)
     return (float(x.mean()), float(x.std(ddof=1)))
 
+
 def _median_iqr(vals: List[float]) -> Tuple[float, float, float, float, float]:
     x = _safe_arr(np.array(vals, dtype=float))
     if x.size == 0:
@@ -296,17 +297,31 @@ def _print_block_by_seed_iqr(
     deg_med, deg_q1, deg_q3, _, _ = _median_iqr(vals("mean_degrade_percent_on_losses"))
 
     print(f"{title}:")
-    print(f"  Win rate (percent):                   {_fmt_percent_iqr(win_med, win_q1, win_q3)}")
-    print(f"  Tie rate (percent):                   {_fmt_percent_iqr(tie_med, tie_q1, tie_q3)}")
-    print(f"  Loss rate (percent):                  {_fmt_percent_iqr(loss_med, loss_q1, loss_q3)}")
-    print(f"  Mean improvement on wins only (%):    {_fmt_percent_iqr(imp_med, imp_q1, imp_q3)}")
-    print(f"  Mean degradation on losses only (%):  {_fmt_percent_iqr(deg_med, deg_q1, deg_q3)}")
+    print(
+        f"  Win rate (percent):                   {_fmt_percent_iqr(win_med, win_q1, win_q3)}"
+    )
+    print(
+        f"  Tie rate (percent):                   {_fmt_percent_iqr(tie_med, tie_q1, tie_q3)}"
+    )
+    print(
+        f"  Loss rate (percent):                  {_fmt_percent_iqr(loss_med, loss_q1, loss_q3)}"
+    )
+    print(
+        f"  Mean improvement on wins only (%):    {_fmt_percent_iqr(imp_med, imp_q1, imp_q3)}"
+    )
+    print(
+        f"  Mean degradation on losses only (%):  {_fmt_percent_iqr(deg_med, deg_q1, deg_q3)}"
+    )
 
     if show_debug_reward_deltas:
         med_med, med_q1, med_q3, _, _ = _median_iqr(vals("median_delta_reward"))
         mean_med, mean_q1, mean_q3, _, _ = _median_iqr(vals("mean_delta_reward"))
-        print(f"  [debug] Median delta reward:          {_fmt_reward_iqr(med_med, med_q1, med_q3)}")
-        print(f"  [debug] Mean delta reward:            {_fmt_reward_iqr(mean_med, mean_q1, mean_q3)}")
+        print(
+            f"  [debug] Median delta reward:          {_fmt_reward_iqr(med_med, med_q1, med_q3)}"
+        )
+        print(
+            f"  [debug] Mean delta reward:            {_fmt_reward_iqr(mean_med, mean_q1, mean_q3)}"
+        )
 
 
 def _print_block_by_seed(
@@ -375,7 +390,11 @@ def print_table_a_both_modes(
     per_seed = table_a["per_seed"]
 
     _print_block_by_seed_iqr(
-        "Agent vs GrevLex", "agent_vs_grevlex", per_seed, seeds, show_debug_reward_deltas
+        "Agent vs GrevLex",
+        "agent_vs_grevlex",
+        per_seed,
+        seeds,
+        show_debug_reward_deltas,
     )
     _print_block_by_seed_iqr(
         "Agent vs DegLex", "agent_vs_deglex", per_seed, seeds, show_debug_reward_deltas
@@ -389,7 +408,7 @@ def print_table_a_both_modes(
             show_debug_reward_deltas,
         )
     print()
-    
+
     agg = table_a["by_seed_agg"]
     if include_baseline_sanity:
         _print_block_by_seed(

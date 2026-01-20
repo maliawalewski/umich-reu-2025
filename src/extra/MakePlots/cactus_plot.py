@@ -250,4 +250,3 @@ def make_runtime_cactus_figs(
             y_clip_quantiles=y_clip_quantiles,
             per_seed_overlay=per_seed_overlay,
         )
-

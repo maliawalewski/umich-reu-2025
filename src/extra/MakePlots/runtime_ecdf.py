@@ -7,33 +7,33 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+
 def rcparams():
-    plt.rcParams.update({
-        "font.family": "serif",
-        "font.serif": ["FreeSerif", "STIXGeneral", "DejaVu Serif"],
-        "mathtext.fontset": "stix",
+    plt.rcParams.update(
+        {
+            "font.family": "serif",
+            "font.serif": ["FreeSerif", "STIXGeneral", "DejaVu Serif"],
+            "mathtext.fontset": "stix",
+            "font.size": 8,
+            "axes.labelsize": 8,
+            "axes.titlesize": 8,
+            "xtick.labelsize": 8,
+            "ytick.labelsize": 8,
+            "font.weight": "normal",
+            "axes.labelweight": "normal",
+            "text.color": "black",
+            "axes.labelcolor": "black",
+            "xtick.color": "black",
+            "ytick.color": "black",
+            "axes.edgecolor": "black",
+            "axes.linewidth": 0.8,
+            "lines.linewidth": 1.2,
+            "pdf.fonttype": 42,
+            "ps.fonttype": 42,
+            "savefig.dpi": 300,
+        }
+    )
 
-        "font.size": 8,
-        "axes.labelsize": 8,
-        "axes.titlesize": 8,
-        "xtick.labelsize": 8,
-        "ytick.labelsize": 8,
-
-        "font.weight": "normal",
-        "axes.labelweight": "normal",
-
-        "text.color": "black",
-        "axes.labelcolor": "black",
-        "xtick.color": "black",
-        "ytick.color": "black",
-        "axes.edgecolor": "black",
-
-        "axes.linewidth": 0.8,
-        "lines.linewidth": 1.2,
-        "pdf.fonttype": 42,
-        "ps.fonttype": 42,
-        "savefig.dpi": 300,
-    })
 
 def format_axes(ax):
     ax.grid(True, linewidth=0.5, alpha=0.25)
@@ -134,7 +134,13 @@ def plot_runtime_ecdf(
 
     ax.step(xs, ys, where="post", linewidth=1.8, label=label)
 
-    ax.axvline(1.0, linestyle="--", linewidth=1.0, color="black", label="1.0 (tie)" if legend else "_nolegend_")
+    ax.axvline(
+        1.0,
+        linestyle="--",
+        linewidth=1.0,
+        color="black",
+        label="1.0 (tie)" if legend else "_nolegend_",
+    )
 
     ax.set_xlabel(f"Runtime ratio (agent / {baseline_name})")
     ax.set_ylabel("ECDF (fraction of instances)")
@@ -192,4 +198,3 @@ def make_runtime_ecdf_figs(
             logx=logx,
             x_clip_quantiles=x_clip_quantiles,
         )
-
