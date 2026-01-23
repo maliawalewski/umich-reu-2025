@@ -58,5 +58,3 @@ julia main.jl --baseset=DEFAULT --LSTM=false --PER=true --seed=0
 ```bash
 julia multi_target_sr.jl --train=true --test=true --sr_mode=3target
 ```
-
-<img width="2048" height="2048" alt="Gemini_Generated_Image_te4y97te4y97te4y" src="https://github.com/user-attachments/assets/fb564f59-0fc2-445c-abf2-e31fe2289bf7" />
