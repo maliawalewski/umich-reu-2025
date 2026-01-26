@@ -100,7 +100,6 @@ def make_training_plot(
     band: Literal["iqr", "std", "none"] = "iqr",
     legend: bool = True,
     inset: bool = False,
-    inset_x_frac: float = 0.70,  # show last 70% of x by default
     inset_ylim: Optional[tuple[float, float]] = None,
 ) -> None:
     """
@@ -236,6 +235,8 @@ def make_training_plot(
         pd.Series(deg_delta_mean), window=window
     ).to_numpy()
 
+    deg_delta_const = float(np.nanmean(deg_delta_mean))
+
     fig, ax = plt.subplots(figsize=figsize)
 
     if band != "none":
@@ -243,7 +244,7 @@ def make_training_plot(
             x_vals,
             agent_lo,
             agent_hi,
-            alpha=0.30,
+            alpha=0.40,
             linewidth=0.0,
             label=f"Agent ({band_label})",
         )
@@ -273,16 +274,16 @@ def make_training_plot(
         ax.plot(
             [x_vals[0], x_vals[-1]],
             [0.0, 0.0],
-            linestyle="--",
-            linewidth=1.0,
+            linestyle=":",
+            linewidth=0.9,
             color="black",
             label="GrevLex" if legend else "_nolegend_",
         )
 
         if include_deglex_reference:
             ax.plot(
-                x_vals,
-                deg_delta_mean_s,
+                [x_vals[0], x_vals[-1]],
+                [deg_delta_const, deg_delta_const],
                 linestyle="--",
                 linewidth=1.0,
                 label="GrLex",
@@ -296,7 +297,7 @@ def make_training_plot(
         ax.set_title(title)
 
     if inset:
-        axins = inset_axes(ax, width="33%", height="33%", loc="upper right")
+        axins = inset_axes(ax, width="33%", height="33%", loc="best")
         axins.set_xticks([])
         axins.set_yticks([])
         axins.grid(False)
@@ -325,8 +326,8 @@ def make_training_plot(
             )
             if include_deglex_reference:
                 axins.plot(
-                    x_vals,
-                    deg_delta_mean_s,
+                    [x_vals[0], x_vals[-1]],
+                    [deg_delta_const, deg_delta_const],
                     linestyle="--",
                     linewidth=0.9,
                     color="orange",
@@ -342,7 +343,7 @@ def make_training_plot(
 
     format_axes(ax)
     if legend:
-        ax.legend(frameon=True, fontsize=7)
+        ax.legend(frameon=True, fontsize=7, loc="lower right")
     fig.tight_layout()
     outpath.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(outpath, bbox_inches="tight")
