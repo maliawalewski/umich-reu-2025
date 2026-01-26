@@ -204,7 +204,7 @@ def plot_reward_ecdf(
 
     format_axes(ax)
     if legend:
-        ax.legend(frameon=True, fontsize=7, loc="lower right")
+        ax.legend(frameon=True, fontsize=7, loc="best")
 
     fig.tight_layout()
     outpath.parent.mkdir(parents=True, exist_ok=True)
