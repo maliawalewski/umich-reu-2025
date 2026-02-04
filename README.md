@@ -2,6 +2,10 @@ Learning Monomial Orders in Grobner Basis Computations
 
 This repo contains code and data for our Learning Monomial Orders in Groebner Basis Algorithms project, as well as code written during training for the project.
 
+Our paper is here: https://arxiv.org/abs/2602.02972
+
+
+
 ## Getting started
 
 1) **Install Julia**
