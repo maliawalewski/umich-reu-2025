@@ -14,7 +14,6 @@ using Random
 include("environment.jl")
 include("utils.jl")
 include("basesets.jl")
-# plotlyjs()
 
 BASE_DIR = @__DIR__
 DATA_DIR = joinpath(BASE_DIR, "data")
@@ -171,13 +170,10 @@ function build_td3_model(env::Environment, args::Dict{String,Any})
     critic_2_target = deepcopy(critic_2)
 
     actor_opt = ADAM(ACTOR_LR)
-    # actor_opt = Optimisers.OptimiserChain(Optimisers.ClipNorm(10), Optimisers.ADAM(LR))
     actor_opt_state = Flux.setup(actor_opt, actor)
 
     critic_1_opt = ADAM(CRITIC_LR)
     critic_2_opt = ADAM(CRITIC_LR)
-    # critic_1_opt = Optimisers.OptimiserChain(Optimisers.ClipNorm(10), Optimisers.ADAM(LR))
-    # critic_2_opt = Optimisers.OptimiserChain(Optimisers.ClipNorm(10), Optimisers.ADAM(LR))
 
     critic_1_opt_state = Flux.setup(critic_1_opt, critic_1)
     critic_2_opt_state = Flux.setup(critic_2_opt, critic_2)
@@ -327,7 +323,6 @@ function train_td3!(
             Flux.reset!(actor.actor_target)
         end
 
-        # fill_ideal_batch(env, env.num_polys, MAX_DEGREE, MAX_ATTEMPTS) # fill with random ideals
 
         start_idx = (i - 1) * NUM_IDEALS + 1
         end_idx = i * NUM_IDEALS
@@ -417,14 +412,6 @@ function train_td3!(
                 if args["per"]
                     add_experience!(
                         replay_buffer,
-                        # Transition(
-                        # padded_s,
-                        # padded_s_next,
-                        # r,
-                        # padded_s_next,
-                        # s_input,
-                        # s_next_input,
-                        # ),
                         Transition(s, action, r, s_next, s_input, s_next_input),
                         abs(r),
                     )
@@ -475,7 +462,6 @@ function train_td3!(
             end
 
             target_action = actor.actor_target(s_next_input_batch) .+ epsilon
-            # target_action = vcat(target_action, zeros(Float32, env.num_polys - env.num_vars, N_SAMPLES))
             target_action = Float32.(target_action)
 
             critic_1_target_val =
@@ -523,10 +509,6 @@ function train_td3!(
                 end
                 actor_loss, back = Flux.withgradient(actor.actor) do model
                     a_pred = model(Float32.(s_input_batch))
-                    # a_pred = vcat(
-                    # a_pred,
-                    # zeros(Float32, env.num_polys - env.num_vars, N_SAMPLES),
-                    # )
                     q_val = critic.critic_1(Float32.(vcat(s_input_batch, a_pred)))
                     -mean(q_val)
                 end
@@ -656,42 +638,6 @@ function train_td3!(
     )
 
     savefig(critic_plot, critics_plot_path)
-
-
-
-
-    # n_cols_plot = scatter(1:length(n_cols_list), n_cols_list,
-    #     title = "n_cols over time",
-    #     xlabel = "Step",
-    #     ylabel = "n_cols",
-    #     label = "n_cols",
-    #     markersize = 1,
-    #     markerstrokewidth = 0,
-    #     color = :orange)
-
-    # savefig(n_cols_plot, "n_cols_plot.pdf")
-
-    # n_deg_plot = scatter(1:length(pair_degrees), pair_degrees,
-    #     title = "Pair Degrees over time",
-    #     xlabel = "Step",
-    #     ylabel = "pair_degree",
-    #     label = "degree",
-    #     markersize = 1,
-    #     markerstrokewidth = 0,
-    #     color = :cyan)
-
-    # savefig(n_deg_plot, "pair_degrees_plot.pdf")
-
-    # n_cts_plot = scatter(1:length(pair_counts), pair_counts,
-    #     title = "Pair Counts over time",
-    #     xlabel = "Step",
-    #     ylabel = "pair_count",
-    #     label = "count",
-    #     markersize = 1,
-    #     markerstrokewidth = 0,
-    #     color = :magenta)
-
-    # savefig(n_cts_plot, "pair_counts_plot.pdf")
 
 end
 

@@ -53,9 +53,7 @@ for b in $BASESETS; do
     --training-mode delta \
     --training-xaxis episode \
     --training-window "$TRAIN_WINDOW" \
-    --make-test-delta-plots \
-    --make-runtime-ecdf \
-    --runtime-ecdf-clip 0.01
+    --make-test-delta-plots
   echo
 done
 
