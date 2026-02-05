@@ -132,7 +132,7 @@ function next_perm!(ps::PermScheduler)
         Random.shuffle!(ps.rng, ps.shuffled)
     end
     ps.k += 1
-    return ps.shuffled[((ps.k - 1) % 6) + 1]
+    return ps.shuffled[((ps.k-1)%6)+1]
 end
 
 function max_total_degree(base_sets::Vector{Any})

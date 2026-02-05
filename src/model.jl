@@ -740,7 +740,7 @@ function test_td3!(
 
             s_next = Float32.(state(env))
             r = Float32(env.reward)
-            
+
             s = Float32.(state(env))
             done = is_terminated(env)
         end

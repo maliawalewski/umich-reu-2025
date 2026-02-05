@@ -37,32 +37,31 @@ def spearmanr(x, y):
 
 
 def rcparams():
-    plt.rcParams.update({
-        "font.family": "serif",
-        "font.serif": ["FreeSerif", "STIXGeneral", "DejaVu Serif"],
-        "mathtext.fontset": "stix",
+    plt.rcParams.update(
+        {
+            "font.family": "serif",
+            "font.serif": ["FreeSerif", "STIXGeneral", "DejaVu Serif"],
+            "mathtext.fontset": "stix",
+            "font.size": 8,
+            "axes.labelsize": 8,
+            "axes.titlesize": 8,
+            "xtick.labelsize": 8,
+            "ytick.labelsize": 8,
+            "font.weight": "normal",
+            "axes.labelweight": "normal",
+            "text.color": "black",
+            "axes.labelcolor": "black",
+            "xtick.color": "black",
+            "ytick.color": "black",
+            "axes.edgecolor": "black",
+            "axes.linewidth": 0.8,
+            "lines.linewidth": 1.2,
+            "pdf.fonttype": 42,
+            "ps.fonttype": 42,
+            "savefig.dpi": 300,
+        }
+    )
 
-        "font.size": 8,
-        "axes.labelsize": 8,
-        "axes.titlesize": 8,
-        "xtick.labelsize": 8,
-        "ytick.labelsize": 8,
-
-        "font.weight": "normal",
-        "axes.labelweight": "normal",
-
-        "text.color": "black",
-        "axes.labelcolor": "black",
-        "xtick.color": "black",
-        "ytick.color": "black",
-        "axes.edgecolor": "black",
-
-        "axes.linewidth": 0.8,
-        "lines.linewidth": 1.2,
-        "pdf.fonttype": 42,
-        "ps.fonttype": 42,
-        "savefig.dpi": 300,
-    })
 
 def clean_df(df):
     df = df.replace([np.inf, -np.inf], np.nan).dropna(
@@ -97,7 +96,7 @@ def plot_scatter_with_trend(ax, x, y, add_trend=True):
         m, b = fit_linear_trend(x, y)
         xx = np.linspace(x.min(), x.max(), 200)
         yy = m * xx + b
-        ax.plot(xx, yy) 
+        ax.plot(xx, yy)
 
 
 def make_main(df, outpath, add_trend=True, use_logx=False):
@@ -181,14 +180,18 @@ def main():
     app_path = outdir / "reward_vs_time_appendix_no_baseline.pdf"
 
     rp, rs, n = make_main(df, main_path, add_trend=args.trend, use_logx=args.logx)
-    arp, ars, an, baseline = make_appendix(df, app_path, add_trend=args.trend, use_logx=args.logx)
+    arp, ars, an, baseline = make_appendix(
+        df, app_path, add_trend=args.trend, use_logx=args.logx
+    )
 
     corr_x = "log10(time)" if args.logx else "time"
     print(f"MAIN (reward_delta vs {corr_x})")
     print(f"N={n}, pearson={rp:.3f}, spearman={rs:.3f}")
     print()
     print(f"APPENDIX (reward absolute vs {corr_x})")
-    print(f"N={an}, pearson={arp:.3f}, spearman={ars:.3f}, baseline_reward={baseline:.6g}")
+    print(
+        f"N={an}, pearson={arp:.3f}, spearman={ars:.3f}, baseline_reward={baseline:.6g}"
+    )
     print()
     print(f"Wrote: {main_path}")
     print(f"Wrote: {app_path}")
@@ -196,4 +199,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

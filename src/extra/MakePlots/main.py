@@ -144,7 +144,6 @@ def main():
         help="optional rounding for delta plots, e.g. 1e-6",
     )
 
-
     args = ap.parse_args()
 
     src_dir = Path(args.src).resolve() if args.src else get_src_dir()
@@ -253,7 +252,6 @@ def main():
             round_to=args.delta_round,
         )
         print(f"Wrote delta plots to {outdir}")
-
 
     outdir = Path(args.outdir)
     if not outdir.is_absolute():

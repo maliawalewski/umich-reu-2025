@@ -1,10 +1,11 @@
 import numpy as np
 
-DATA_PATH   = "samples.npz"
-VAR_NAMES   = ("x", "y", "z")
+DATA_PATH = "samples.npz"
+VAR_NAMES = ("x", "y", "z")
 MAX_SAMPLES = None
-MAX_TERMS   = None 
-NORMALIZE_W = False 
+MAX_TERMS = None
+NORMALIZE_W = False
+
 
 def grevlex_key(exp_xyz):
     a, b, c = (int(t) for t in exp_xyz)
@@ -18,7 +19,7 @@ def wgrevlex_key(exp_xyz, w):
     wdeg = float(e @ w)
     deg = int(e.sum())
     a, b, c = (int(t) for t in e)
-    return (-wdeg)
+    return -wdeg
 
 
 def format_monom(exp_xyz, var_names=VAR_NAMES):
@@ -91,10 +92,14 @@ def print_one_baseset(mm, w, idx):
         grev_terms.append(gt)
         wgrev_terms.append(wt)
 
-    grev_poly_order = sorted(range(mm.shape[0]), key=lambda p: poly_signature(grev_terms[p], grevlex_key))
+    grev_poly_order = sorted(
+        range(mm.shape[0]), key=lambda p: poly_signature(grev_terms[p], grevlex_key)
+    )
     wgrev_poly_order = sorted(
         range(mm.shape[0]),
-        key=lambda p: poly_signature(wgrev_terms[p], lambda t, ww=w: wgrevlex_key(t, ww)),
+        key=lambda p: poly_signature(
+            wgrev_terms[p], lambda t, ww=w: wgrevlex_key(t, ww)
+        ),
     )
 
     print("=" * 110)
@@ -121,8 +126,7 @@ def print_one_baseset(mm, w, idx):
         baseset_positions_total += len(gt)
 
         left = [f"poly {p}  grevlex:"] + [
-            f"  {marks[j]} {format_monom(gt[j])}"
-            for j in range(len(gt))
+            f"  {marks[j]} {format_monom(gt[j])}" for j in range(len(gt))
         ]
         right = [f"poly {p}  agent(order from w):"] + [
             f"  {marks[j]} {format_monom(wt[j])}   (w·e={float(np.dot(w, wt[j])):.4f})"
@@ -140,7 +144,9 @@ def print_one_baseset(mm, w, idx):
             print("  -> identical term ordering")
         print("")
 
-    print(f"BASESET total position diffs: {baseset_diff_total}/{baseset_positions_total} (out of 18 if 3x6)")
+    print(
+        f"BASESET total position diffs: {baseset_diff_total}/{baseset_positions_total} (out of 18 if 3x6)"
+    )
     print("")
 
     print("Leading monomials per polynomial:")
