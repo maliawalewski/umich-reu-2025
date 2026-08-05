@@ -20,7 +20,7 @@ KIND_SUFFIXES = {
 }
 
 FILENAME_RE = re.compile(
-    r"^td3_run_baseset_(?P<baseset>.+?)_seed_(?P<seed>\d+?)_(?P<kind>.+?)\.csv$"
+    r"^(?P<method>[a-z0-9]+)_run_baseset_(?P<baseset>.+?)_seed_(?P<seed>\d+?)_(?P<kind>.+?)\.csv$"
 )
 
 
@@ -36,43 +36,47 @@ def load_csv(path: Path) -> pd.DataFrame:
     return pd.read_csv(path)
 
 
-def scan_results(results_dir: Path, baseset: str) -> Dict[int, Dict[str, Path]]:
+def scan_results(results_dir: Path, baseset: str) -> Dict[str, Dict[int, Dict[str, Path]]]:
     if not results_dir.is_dir():
         raise FileNotFoundError(f"results_dir does not exist: {results_dir}")
 
-    grouped: Dict[int, Dict[str, Path]] = {}
-    for p in results_dir.glob("td3_run_baseset_*_seed_*_*.csv"):
+    grouped: Dict[str, Dict[int, Dict[str, Path]]] = {}
+    for p in results_dir.glob("*_run_baseset_*_seed_*_*.csv"):
         m = FILENAME_RE.match(p.name)
         if not m:
             continue
         if m.group("baseset") != baseset:
             continue
 
+        method = m.group("method")
         seed = int(m.group("seed"))
         kind = m.group("kind")
         if kind not in KIND_SUFFIXES:
             continue
 
-        grouped.setdefault(seed, {})
-        if kind in grouped[seed] and grouped[seed][kind] != p:
+        grouped.setdefault(method, {})
+        grouped[method].setdefault(seed, {})
+        if kind in grouped[method][seed] and grouped[method][seed][kind] != p:
             raise RuntimeError(
-                f"Duplicate kind for seed={seed}, kind={kind}:\n"
-                f"  {grouped[seed][kind]}\n"
+                f"Duplicate kind for method={method}, seed={seed}, kind={kind}:\n"
+                f"  {grouped[method][seed][kind]}\n"
                 f"  {p}"
             )
-        grouped[seed][kind] = p
+        grouped[method][seed][kind] = p
 
     return grouped
 
 
 def load_grouped(
-    grouped_paths: Dict[int, Dict[str, Path]],
-) -> Dict[int, Dict[str, pd.DataFrame]]:
-    out: Dict[int, Dict[str, pd.DataFrame]] = {}
-    for seed, kinds in sorted(grouped_paths.items()):
-        out[seed] = {}
-        for kind, path in sorted(kinds.items()):
-            out[seed][kind] = load_csv(path)
+    grouped_paths: Dict[str, Dict[int, Dict[str, Path]]],
+) -> Dict[str, Dict[int, Dict[str, pd.DataFrame]]]:
+    out: Dict[str, Dict[int, Dict[str, pd.DataFrame]]] = {}
+    for method, seeds_dict in sorted(grouped_paths.items()):
+        out[method] = {}
+        for seed, kinds in sorted(seeds_dict.items()):
+            out[method][seed] = {}
+            for kind, path in sorted(kinds.items()):
+                out[method][seed][kind] = load_csv(path)
     return out
 
 
@@ -156,53 +160,64 @@ def main():
         )
 
     expected_kinds = list(KIND_SUFFIXES.keys())
-    seeds = sorted(grouped_paths.keys())
+    methods = sorted(grouped_paths.keys())
 
     print(f"src_dir     = {src_dir}")
     print(f"results_dir = {results_dir}")
     print(f"baseset     = {args.baseset}")
-    print(f"seeds       = {seeds}")
+    print(f"methods     = {methods}")
     print()
 
     missing_any = False
     if not args.quiet_scan:
-        for seed in seeds:
-            kinds = grouped_paths[seed]
-            missing = [k for k in expected_kinds if k not in kinds]
-            present = [k for k in expected_kinds if k in kinds]
-            print(f"[seed {seed}]")
-            print(f"  present: {present}")
-            if missing:
-                missing_any = True
-                print(f"  missing: {missing}")
-            for k in present:
-                print(f"    - {k}: {kinds[k].name}")
-            print()
+        for method in methods:
+            for seed in sorted(grouped_paths[method].keys()):
+                kinds = grouped_paths[method][seed]
+                missing = [k for k in expected_kinds if k not in kinds]
+                present = [k for k in expected_kinds if k in kinds]
+                print(f"[{method} | seed {seed}]")
+                print(f"  present: {present}")
+                if missing:
+                    missing_any = True
+                    print(f"  missing: {missing}")
+                for k in present:
+                    print(f"    - {k}: {kinds[k].name}")
+                print()
 
     if args.require_all_kinds and missing_any:
         raise RuntimeError(
             "Some seeds are missing one or more expected CSV kinds (see report above)."
         )
 
-    dfs_by_seed = load_grouped(grouped_paths)
+    dfs_by_method = load_grouped(grouped_paths)
 
     if not args.quiet_scan:
-        for seed in seeds:
-            print(f"----Loaded seed {seed}----")
-            for kind, df in dfs_by_seed[seed].items():
-                print(f"[{kind}] shape={df.shape} cols={list(df.columns)}")
-            print()
+        for method in methods:
+            for seed in sorted(dfs_by_method[method].keys()):
+                print(f"----Loaded {method} seed {seed}----")
+                for kind, df in dfs_by_method[method][seed].items():
+                    print(f"[{kind}] shape={df.shape} cols={list(df.columns)}")
+                print()
 
-    table_a = compute_table_a_reward(dfs_by_seed)
+    # The rest of the plotting scripts currently assume td3 only. We extract td3
+    # and pass it to them, or we could update the plotting scripts to handle dict of dicts.
+    # For now, let's just pass td3 to the existing functions to not break everything.
+    
+    if "td3" not in dfs_by_method:
+        print("No 'td3' data found, skipping table_a, weights_table, etc. (we need to update those to support other methods soon).")
+        td3_dfs = {}
+    else:
+        td3_dfs = dfs_by_method["td3"]
+        table_a = compute_table_a_reward(td3_dfs)
 
-    print_table_a_both_modes(
-        table_a,
-        include_baseline_sanity=args.include_baseline_sanity,
-        show_per_seed=True,
-        show_debug_reward_deltas=args.show_debug_reward_deltas,
-    )
+        print_table_a_both_modes(
+            table_a,
+            include_baseline_sanity=args.include_baseline_sanity,
+            show_per_seed=True,
+            show_debug_reward_deltas=args.show_debug_reward_deltas,
+        )
 
-    weights_table_from_dfs(dfs_by_seed, action_scale=1e3, show_int=True)
+        weights_table_from_dfs(td3_dfs, action_scale=1e3, show_int=True)
 
     root_dir = get_root_dir()
 
@@ -216,8 +231,9 @@ def main():
             / f"training_curve_{args.baseset}_{args.training_mode}_{args.training_xaxis}.pdf"
         )
 
+        # Assuming we update make_training_plot to handle dfs_by_method
         make_training_plot(
-            dfs_by_seed,
+            dfs_by_method,
             outpath,
             mode=args.training_mode,
             xaxis=args.training_xaxis,
@@ -232,32 +248,33 @@ def main():
     if not outdir.is_absolute():
         outdir = (root_dir / outdir).resolve()
 
-    make_reward_ecdf_figs(
-        dfs_by_seed,
-        outdir,
-        baseset=args.baseset,
-        mode="pct",
-    )
-    print(f"Wrote reward ECDFs to {outdir}")
-
-    if args.make_test_delta_plots:
-        outdir = Path(args.outdir)
-        if not outdir.is_absolute():
-            outdir = (root_dir / outdir).resolve()
-
-        make_test_delta_figs(
-            dfs_by_seed,
+    if td3_dfs:
+        make_reward_ecdf_figs(
+            td3_dfs,
             outdir,
             baseset=args.baseset,
-            round_to=args.delta_round,
+            mode="pct",
         )
-        print(f"Wrote delta plots to {outdir}")
+        print(f"Wrote reward ECDFs to {outdir}")
+
+        if args.make_test_delta_plots:
+            outdir = Path(args.outdir)
+            if not outdir.is_absolute():
+                outdir = (root_dir / outdir).resolve()
+
+            make_test_delta_figs(
+                td3_dfs,
+                outdir,
+                baseset=args.baseset,
+                round_to=args.delta_round,
+            )
+            print(f"Wrote delta plots to {outdir}")
 
     outdir = Path(args.outdir)
     if not outdir.is_absolute():
         outdir = (root_dir / outdir).resolve()
 
-    return dfs_by_seed
+    return dfs_by_method
 
 
 if __name__ == "__main__":

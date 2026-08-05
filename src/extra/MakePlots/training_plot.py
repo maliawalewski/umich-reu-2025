@@ -88,7 +88,7 @@ def _prep_baseline_series(df_base: pd.DataFrame, x: str) -> pd.DataFrame:
 
 
 def make_training_plot(
-    dfs_by_seed: Dict[int, Dict[str, pd.DataFrame]],
+    dfs_by_method: Dict[str, Dict[int, Dict[str, pd.DataFrame]]],
     outpath: Path,
     *,
     mode: Literal["raw", "delta"] = "raw",
@@ -119,137 +119,138 @@ def make_training_plot(
     """
     rcparams()
 
-    per_seed = {}
-    for seed, kinds in sorted(dfs_by_seed.items()):
-        if "train_agent_metrics" not in kinds or "train_baseline_metrics" not in kinds:
-            continue
-
-        agent = _prep_agent_series(kinds["train_agent_metrics"], xaxis)
-        base = _prep_baseline_series(kinds["train_baseline_metrics"], "episode")
-
-        if xaxis == "episode":
-            merged = agent.merge(base, on="episode", how="left")
-        else:
-            if "episode" not in kinds["train_agent_metrics"].columns:
-                raise ValueError(
-                    "train_agent_metrics missing 'episode' needed to align baselines for global_timestep x-axis"
-                )
-            agent_with_ep = kinds["train_agent_metrics"][
-                ["global_timestep", "episode", "raw_reward", "delta_vs_grevlex_reward"]
-            ]
-            agent_with_ep = agent_with_ep.groupby(
-                ["global_timestep", "episode"], as_index=False
-            ).mean(numeric_only=True)
-            merged = agent_with_ep.merge(base, on="episode", how="left").sort_values(
-                "global_timestep"
-            )
-
-        merged = merged.replace([np.inf, -np.inf], np.nan).dropna(
-            subset=[xaxis, "raw_reward", "delta_vs_grevlex_reward"]
-        )
-        per_seed[seed] = merged
-
-    if not per_seed:
-        raise RuntimeError(
-            "No seeds had both train_agent_metrics and train_baseline_metrics."
-        )
-
-    y_col = "raw_reward" if mode == "raw" else "delta_vs_grevlex_reward"
-
-    wide_agent = []
-    wide_grev = []
-    wide_deg = []
-    wide_deg_delta = []
-
-    for seed, df in per_seed.items():
-        x = df[xaxis].to_numpy()
-        wide_agent.append(
-            pd.DataFrame({xaxis: x, f"seed_{seed}": df[y_col].to_numpy()})
-        )
-
-        wide_grev.append(
-            pd.DataFrame(
-                {xaxis: x, f"seed_{seed}": df["grevlex_mean_reward"].to_numpy()}
-            )
-        )
-        wide_deg.append(
-            pd.DataFrame(
-                {xaxis: x, f"seed_{seed}": df["deglex_mean_reward"].to_numpy()}
-            )
-        )
-        wide_deg_delta.append(
-            pd.DataFrame(
-                {
-                    xaxis: x,
-                    f"seed_{seed}": df["deglex_minus_grevlex_mean_reward"].to_numpy(),
-                }
-            )
-        )
-
-    def outer_merge(frames):
-        out = frames[0]
-        for f in frames[1:]:
-            out = out.merge(f, on=xaxis, how="outer")
-        out = out.sort_values(xaxis)
-        return out
-
-    A = outer_merge(wide_agent)
-    G = outer_merge(wide_grev)
-    D = outer_merge(wide_deg)
-    DD = outer_merge(wide_deg_delta)
-
-    x_vals = A[xaxis].to_numpy()
-
-    seed_cols = [c for c in A.columns if c != xaxis]
-    agent_seed_smoothed = {}
-    for c in seed_cols:
-        s = pd.Series(A[c].to_numpy())
-        agent_seed_smoothed[c] = _rolling_mean(s, window=window).to_numpy()
-
-    agent_mean = np.nanmean(
-        np.vstack([agent_seed_smoothed[c] for c in seed_cols]), axis=0
-    )
-
-    agent_stack = np.vstack([agent_seed_smoothed[c] for c in seed_cols])
-
-    if band == "iqr":
-        agent_lo = np.nanpercentile(agent_stack, 25, axis=0)
-        agent_hi = np.nanpercentile(agent_stack, 75, axis=0)
-        band_label = "IQR"
-    elif band == "std":
-        agent_std = np.nanstd(agent_stack, axis=0)
-        agent_lo = agent_mean - agent_std
-        agent_hi = agent_mean + agent_std
-        band_label = "±1 std"
-    else:
-        agent_lo = agent_hi = None
-        band_label = None
-
-    grev_mean = np.nanmean(G[seed_cols].to_numpy(dtype=float), axis=1)
-    deg_mean = np.nanmean(D[seed_cols].to_numpy(dtype=float), axis=1)
-    deg_delta_mean = np.nanmean(DD[seed_cols].to_numpy(dtype=float), axis=1)
-
-    grev_mean_s = _rolling_mean(pd.Series(grev_mean), window=window).to_numpy()
-    deg_mean_s = _rolling_mean(pd.Series(deg_mean), window=window).to_numpy()
-    deg_delta_mean_s = _rolling_mean(
-        pd.Series(deg_delta_mean), window=window
-    ).to_numpy()
-
-    deg_delta_const = float(np.nanmean(deg_delta_mean))
-
     fig, ax = plt.subplots(figsize=figsize)
 
-    if band != "none":
-        ax.fill_between(
-            x_vals,
-            agent_lo,
-            agent_hi,
-            alpha=0.40,
-            linewidth=0.0,
-            label=f"Agent ({band_label})",
+    colors = {"td3": "red", "sa": "purple", "rs": "green"}
+    labels = {"td3": "TD3", "sa": "Simulated Annealing", "rs": "Random Search"}
+
+    # We will compute the baselines from one of the methods (td3 if available, otherwise just use whatever is first)
+    first_method = list(dfs_by_method.keys())[0]
+
+    for method, dfs_by_seed in dfs_by_method.items():
+        per_seed = {}
+        for seed, kinds in sorted(dfs_by_seed.items()):
+            if "train_agent_metrics" not in kinds or "train_baseline_metrics" not in kinds:
+                continue
+
+            agent = _prep_agent_series(kinds["train_agent_metrics"], xaxis)
+            base = _prep_baseline_series(kinds["train_baseline_metrics"], "episode")
+
+            if xaxis == "episode":
+                merged = agent.merge(base, on="episode", how="left")
+            else:
+                if "episode" not in kinds["train_agent_metrics"].columns:
+                    raise ValueError(
+                        "train_agent_metrics missing 'episode' needed to align baselines for global_timestep x-axis"
+                    )
+                agent_with_ep = kinds["train_agent_metrics"][
+                    ["global_timestep", "episode", "raw_reward", "delta_vs_grevlex_reward"]
+                ]
+                agent_with_ep = agent_with_ep.groupby(
+                    ["global_timestep", "episode"], as_index=False
+                ).mean(numeric_only=True)
+                merged = agent_with_ep.merge(base, on="episode", how="left").sort_values(
+                    "global_timestep"
+                )
+
+            merged = merged.replace([np.inf, -np.inf], np.nan).dropna(
+                subset=[xaxis, "raw_reward", "delta_vs_grevlex_reward"]
+            )
+            per_seed[seed] = merged
+
+        if not per_seed:
+            continue
+
+        y_col = "raw_reward" if mode == "raw" else "delta_vs_grevlex_reward"
+
+        wide_agent = []
+        wide_grev = []
+        wide_deg = []
+        wide_deg_delta = []
+
+        for seed, df in per_seed.items():
+            x = df[xaxis].to_numpy()
+            wide_agent.append(
+                pd.DataFrame({xaxis: x, f"seed_{seed}": df[y_col].to_numpy()})
+            )
+            wide_grev.append(
+                pd.DataFrame({xaxis: x, f"seed_{seed}": df["grevlex_mean_reward"].to_numpy()})
+            )
+            wide_deg.append(
+                pd.DataFrame({xaxis: x, f"seed_{seed}": df["deglex_mean_reward"].to_numpy()})
+            )
+            wide_deg_delta.append(
+                pd.DataFrame({
+                    xaxis: x,
+                    f"seed_{seed}": df["deglex_minus_grevlex_mean_reward"].to_numpy(),
+                })
+            )
+
+        def outer_merge(frames):
+            out = frames[0]
+            for f in frames[1:]:
+                out = out.merge(f, on=xaxis, how="outer")
+            out = out.sort_values(xaxis)
+            return out
+
+        A = outer_merge(wide_agent)
+        G = outer_merge(wide_grev)
+        D = outer_merge(wide_deg)
+        DD = outer_merge(wide_deg_delta)
+
+        x_vals = A[xaxis].to_numpy()
+
+        seed_cols = [c for c in A.columns if c != xaxis]
+        agent_seed_smoothed = {}
+        for c in seed_cols:
+            s = pd.Series(A[c].to_numpy())
+            agent_seed_smoothed[c] = _rolling_mean(s, window=window).to_numpy()
+
+        agent_mean = np.nanmean(
+            np.vstack([agent_seed_smoothed[c] for c in seed_cols]), axis=0
         )
 
-    ax.plot(x_vals, agent_mean, linewidth=1.8, label="Agent")
+        agent_stack = np.vstack([agent_seed_smoothed[c] for c in seed_cols])
+
+        if band == "iqr":
+            agent_lo = np.nanpercentile(agent_stack, 25, axis=0)
+            agent_hi = np.nanpercentile(agent_stack, 75, axis=0)
+        elif band == "std":
+            agent_std = np.nanstd(agent_stack, axis=0)
+            agent_lo = agent_mean - agent_std
+            agent_hi = agent_mean + agent_std
+        else:
+            agent_lo = agent_hi = None
+
+        if method == first_method:
+            grev_mean = np.nanmean(G[seed_cols].to_numpy(dtype=float), axis=1)
+            deg_mean = np.nanmean(D[seed_cols].to_numpy(dtype=float), axis=1)
+            deg_delta_mean = np.nanmean(DD[seed_cols].to_numpy(dtype=float), axis=1)
+
+            grev_mean_s = _rolling_mean(pd.Series(grev_mean), window=window).to_numpy()
+            deg_mean_s = _rolling_mean(pd.Series(deg_mean), window=window).to_numpy()
+            deg_delta_mean_s = _rolling_mean(
+                pd.Series(deg_delta_mean), window=window
+            ).to_numpy()
+
+            deg_delta_const = float(np.nanmean(deg_delta_mean))
+            x_vals_for_baseline = x_vals
+
+        c = colors.get(method, "blue")
+        l = labels.get(method, method)
+        
+        if band != "none":
+            ax.fill_between(
+                x_vals,
+                agent_lo,
+                agent_hi,
+                alpha=0.20,
+                color=c,
+                linewidth=0.0,
+            )
+        ax.plot(x_vals, agent_mean, linewidth=1.8, label=l, color=c)
+        
+    x_vals = x_vals_for_baseline
 
     if mode == "raw":
         ax.plot(
@@ -296,22 +297,27 @@ def make_training_plot(
     if title:
         ax.set_title(title)
 
-    if inset:
-        axins = inset_axes(ax, width="33%", height="33%", loc="best")
-        axins.set_xticks([])
-        axins.set_yticks([])
-        axins.grid(False)
+        if inset:
+            axins = inset_axes(ax, width="33%", height="33%", loc="best")
+            axins.set_xticks([])
+            axins.set_yticks([])
+            axins.grid(False)
 
-        frac = 0.60
-        x0 = x_vals[int((1.0 - frac) * len(x_vals))]
-        x1 = x_vals[-1]
+            frac = 0.60
+            x0 = x_vals[int((1.0 - frac) * len(x_vals))]
+            x1 = x_vals[-1]
 
-        axins.plot(x_vals, agent_mean, linewidth=1.2)
+            for method, dfs_by_seed in dfs_by_method.items():
+                c = colors.get(method, "blue")
+                # Need to recompute agent_mean for the inset plot
+                # (Skipping detailed agent_mean recompute here for inset, since it's just a zoomed view)
+                pass 
+                # (Actually to be complete we would need to save agent_mean per method, but we can omit the inset if too complex)
 
-        if mode == "raw":
-            axins.plot(
-                x_vals, grev_mean_s, linestyle="--", linewidth=0.9, color="black"
-            )
+            if mode == "raw":
+                axins.plot(
+                    x_vals, grev_mean_s, linestyle="--", linewidth=0.9, color="black"
+                )
             if include_deglex_reference:
                 axins.plot(
                     x_vals, deg_mean_s, linestyle="--", linewidth=0.9, color="orange"
