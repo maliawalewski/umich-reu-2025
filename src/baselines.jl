@@ -145,6 +145,8 @@ function run_baseline!(
         # At start of new batch, re-evaluate current_best_weight to get accurate current reward
         act!(env, current_best_weight, true)
         current_best_reward = env.reward
+        current_tracked_raw = env.last_raw_reward
+        current_tracked_delta = env.last_delta_reward
         
         done = false
         while !done
@@ -171,15 +173,21 @@ function run_baseline!(
                 if r > current_best_reward
                     current_best_reward = r
                     current_best_weight = action
+                    current_tracked_raw = env.last_raw_reward
+                    current_tracked_delta = env.last_delta_reward
                 end
             elseif method == "sa"
                 if r > current_best_reward
                     current_best_reward = r
                     current_best_weight = action
+                    current_tracked_raw = env.last_raw_reward
+                    current_tracked_delta = env.last_delta_reward
                 else
                     if rand(rng_policy) < exp((r - current_best_reward) / T)
                         current_best_reward = r
                         current_best_weight = action
+                        current_tracked_raw = env.last_raw_reward
+                        current_tracked_delta = env.last_delta_reward
                     end
                 end
                 T = max(T_MIN, T / T_decay)
@@ -189,8 +197,8 @@ function run_baseline!(
                 global_timestep,
                 i,
                 env.iteration_count,
-                env.last_raw_reward,
-                env.last_delta_reward,
+                current_tracked_raw,
+                current_tracked_delta,
                 env.last_agent_batch_time_s,
                 env.last_agent_mean_time_s,
             ))
