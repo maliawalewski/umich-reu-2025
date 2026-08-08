@@ -201,7 +201,7 @@ def plot_delta_pmf(
 
 
 def make_test_delta_figs(
-    dfs_by_seed: Dict[int, Dict[str, pd.DataFrame]],
+    dfs_by_method: Dict[str, Dict[int, Dict[str, pd.DataFrame]]],
     outdir: Path,
     *,
     baseset: str,
@@ -213,28 +213,31 @@ def make_test_delta_figs(
     # A common choice if you have near-float noise is tie_tol = round_to (when provided).
     tie_tol = float(round_to) if (round_to is not None and round_to > 0) else 0.0
 
-    plot_delta_pmf(
-        dfs_by_seed,
-        outdir / f"delta_pmf_vs_degrevlex_{baseset}.pdf",
-        round_to=round_to,
-        top_k=15,
-        min_prob=None,  # disable hard cutoff so "Other" doesn't eat mass unfairly
-        target_mass=0.90,  # show enough atoms to explain 90% of mass (capped by top_k)
-        tie_tol=tie_tol,  # actually bucket near-ties
-        baseline_key="grevlex",
-        baseline_name="GrevLex",
-        show_other_unique=True,
-    )
+    for method, dfs_by_seed in dfs_by_method.items():
+        plot_delta_pmf(
+            dfs_by_seed,
+            outdir / f"delta_pmf_{method}_vs_degrevlex_{baseset}.pdf",
+            round_to=round_to,
+            top_k=15,
+            min_prob=None,  # disable hard cutoff so "Other" doesn't eat mass unfairly
+            target_mass=0.90,  # show enough atoms to explain 90% of mass (capped by top_k)
+            tie_tol=tie_tol,  # actually bucket near-ties
+            baseline_key="grevlex",
+            baseline_name="GrevLex",
+            show_other_unique=True,
+            title=f"Delta PMF: {method.upper()} vs GrevLex",
+        )
 
-    plot_delta_pmf(
-        dfs_by_seed,
-        outdir / f"delta_pmf_vs_deglex_{baseset}.pdf",
-        round_to=round_to,
-        top_k=15,
-        min_prob=None,
-        target_mass=0.90,
-        tie_tol=tie_tol,
-        baseline_key="deglex",
-        baseline_name="GrLex",
-        show_other_unique=True,
-    )
+        plot_delta_pmf(
+            dfs_by_seed,
+            outdir / f"delta_pmf_{method}_vs_deglex_{baseset}.pdf",
+            round_to=round_to,
+            top_k=15,
+            min_prob=None,
+            target_mass=0.90,
+            tie_tol=tie_tol,
+            baseline_key="deglex",
+            baseline_name="GrLex",
+            show_other_unique=True,
+            title=f"Delta PMF: {method.upper()} vs GrLex",
+        )

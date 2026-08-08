@@ -203,13 +203,9 @@ def main():
     # and pass it to them, or we could update the plotting scripts to handle dict of dicts.
     # For now, let's just pass td3 to the existing functions to not break everything.
     
-    if "td3" not in dfs_by_method:
-        print("No 'td3' data found, skipping table_a, weights_table, etc. (we need to update those to support other methods soon).")
-        td3_dfs = {}
-    else:
-        td3_dfs = dfs_by_method["td3"]
-        table_a = compute_table_a_reward(td3_dfs)
-
+    for method, method_dfs in dfs_by_method.items():
+        print(f"\\n{'='*20} TABLE A FOR METHOD: {method.upper()} {'='*20}")
+        table_a = compute_table_a_reward(method_dfs)
         print_table_a_both_modes(
             table_a,
             include_baseline_sanity=args.include_baseline_sanity,
@@ -217,7 +213,8 @@ def main():
             show_debug_reward_deltas=args.show_debug_reward_deltas,
         )
 
-        weights_table_from_dfs(td3_dfs, action_scale=1e3, show_int=True)
+        print(f"\\n{'='*20} WEIGHTS FOR METHOD: {method.upper()} {'='*20}")
+        weights_table_from_dfs(method_dfs, action_scale=1e3, show_int=True)
 
     root_dir = get_root_dir()
 
@@ -231,7 +228,6 @@ def main():
             / f"training_curve_{args.baseset}_{args.training_mode}_{args.training_xaxis}.pdf"
         )
 
-        # Assuming we update make_training_plot to handle dfs_by_method
         make_training_plot(
             dfs_by_method,
             outpath,
@@ -248,9 +244,9 @@ def main():
     if not outdir.is_absolute():
         outdir = (root_dir / outdir).resolve()
 
-    if td3_dfs:
+    if dfs_by_method:
         make_reward_ecdf_figs(
-            td3_dfs,
+            dfs_by_method,
             outdir,
             baseset=args.baseset,
             mode="pct",
@@ -263,7 +259,7 @@ def main():
                 outdir = (root_dir / outdir).resolve()
 
             make_test_delta_figs(
-                td3_dfs,
+                dfs_by_method,
                 outdir,
                 baseset=args.baseset,
                 round_to=args.delta_round,

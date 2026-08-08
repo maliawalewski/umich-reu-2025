@@ -121,14 +121,14 @@ def _collect_reward_improvement(
 
 
 def plot_reward_ecdf(
-    dfs_by_seed: Dict[int, Dict[str, pd.DataFrame]],
+    dfs_by_method: Dict[str, Dict[int, Dict[str, pd.DataFrame]]],
     outpath: Path,
     *,
     baseline: Literal["grevlex", "deglex"] = "grevlex",
     baseline_name: str = "GrevLex",
     mode: RewardMode = "pct",
     title: Optional[str] = None,
-    figsize=(3.25, 2.35),
+    figsize=(3.50, 2.50),
     legend: bool = True,
     xscale: Literal["linear", "symlog"] = "linear",
     symlog_linthresh: float = 1.0,
@@ -146,21 +146,7 @@ def plot_reward_ecdf(
     """
     rcparams()
 
-    x = _collect_reward_improvement(dfs_by_seed, baseline=baseline, mode=mode)
-
-    if x_clip_quantiles is not None:
-        qlo, qhi = x_clip_quantiles
-        lo, hi = np.quantile(x, [qlo, qhi])
-        x_plot = x[(x >= lo) & (x <= hi)]
-    else:
-        x_plot = x
-
-    xs, ys = _ecdf(x_plot)
-
     fig, ax = plt.subplots(figsize=figsize)
-
-    med = float(np.median(x)) if x.size else float("nan")
-    frac_pos = float(np.mean(x > 0.0)) if x.size else float("nan")
 
     if mode == "pct":
         xlabel = f"Reward % improvement vs {baseline_name}"
@@ -175,14 +161,36 @@ def plot_reward_ecdf(
         tie_x = 1.0
         tie_label = "1.0 (tie)"
 
-    label = "Agent"
-    if np.isfinite(med):
-        if mode == "pct":
-            label += f" (median {med:.3g}%, P[>0]={frac_pos:.3g})"
-        else:
-            label += f" (median {med:.3g}, P[>tie]={frac_pos:.3g})"
+    colors = {"td3": "red", "sa": "purple", "rs": "green"}
+    methods_labels = {"td3": "TD3", "sa": "Simulated Annealing", "rs": "Random Search"}
 
-    ax.step(xs, ys, where="post", linewidth=1.8, label=label)
+    for method, dfs_by_seed in dfs_by_method.items():
+        try:
+            x = _collect_reward_improvement(dfs_by_seed, baseline=baseline, mode=mode)
+        except RuntimeError:
+            continue
+
+        if x_clip_quantiles is not None:
+            qlo, qhi = x_clip_quantiles
+            lo, hi = np.quantile(x, [qlo, qhi])
+            x_plot = x[(x >= lo) & (x <= hi)]
+        else:
+            x_plot = x
+
+        xs, ys = _ecdf(x_plot)
+
+        med = float(np.median(x)) if x.size else float("nan")
+        frac_pos = float(np.mean(x > 0.0)) if x.size else float("nan")
+
+        label = methods_labels.get(method, method.upper())
+        if np.isfinite(med):
+            if mode == "pct":
+                label += f" (med {med:.3g}%, P[>0]={frac_pos:.3g})"
+            else:
+                label += f" (med {med:.3g}, P[>tie]={frac_pos:.3g})"
+
+        c = colors.get(method, "blue")
+        ax.step(xs, ys, where="post", linewidth=1.8, label=label, color=c)
 
     ax.axvline(
         tie_x,
@@ -213,7 +221,7 @@ def plot_reward_ecdf(
 
 
 def make_reward_ecdf_figs(
-    dfs_by_seed: Dict[int, Dict[str, pd.DataFrame]],
+    dfs_by_method: Dict[str, Dict[int, Dict[str, pd.DataFrame]]],
     outdir: Path,
     *,
     baseset: str,
@@ -226,7 +234,7 @@ def make_reward_ecdf_figs(
     outdir.mkdir(parents=True, exist_ok=True)
 
     plot_reward_ecdf(
-        dfs_by_seed,
+        dfs_by_method,
         outdir / f"reward_ecdf_{baseset}_vs_grevlex_{mode}.pdf",
         baseline="grevlex",
         baseline_name="GrevLex",
@@ -240,7 +248,7 @@ def make_reward_ecdf_figs(
 
     if make_appendix_deglex:
         plot_reward_ecdf(
-            dfs_by_seed,
+            dfs_by_method,
             outdir / f"reward_ecdf_{baseset}_vs_deglex_{mode}.pdf",
             baseline="deglex",
             baseline_name="DegLex",
