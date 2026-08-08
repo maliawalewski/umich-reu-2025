@@ -211,6 +211,7 @@ def main():
             include_baseline_sanity=args.include_baseline_sanity,
             show_per_seed=True,
             show_debug_reward_deltas=args.show_debug_reward_deltas,
+            method=method,
         )
 
         print(f"\\n{'='*20} WEIGHTS FOR METHOD: {method.upper()} {'='*20}")

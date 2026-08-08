@@ -242,7 +242,7 @@ function test_baseline!(method, env, args, best_weight, rng_test, rng_cal, base_
     env.variables = vars_cal
     
     # Final weight vector 
-    CSV.write(order_csv, DataFrame(weight = best_weight))
+    CSV.write(order_csv, DataFrame(var = 1:length(best_weight), weight = best_weight))
     serialize(joinpath(RESULTS_DIR, run_tag * "_final_agent_order.bin"), best_weight)
     
     ideals, vars, monomial_matrix = new_generate_data(

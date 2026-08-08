@@ -360,6 +360,7 @@ def print_table_a_both_modes(
     include_baseline_sanity: bool = False,
     show_per_seed: bool = True,
     show_debug_reward_deltas: bool = False,
+    method: str = "Agent",
 ) -> None:
     seeds = table_a["seeds"]
 
@@ -370,10 +371,10 @@ def print_table_a_both_modes(
     pooled = table_a["pooled"]
 
     _print_block_pooled(
-        "Agent vs GrevLex", "agent_vs_grevlex", pooled, show_debug_reward_deltas
+        f"{method.upper()} vs GrevLex", "agent_vs_grevlex", pooled, show_debug_reward_deltas
     )
     _print_block_pooled(
-        "Agent vs DegLex", "agent_vs_deglex", pooled, show_debug_reward_deltas
+        f"{method.upper()} vs DegLex", "agent_vs_deglex", pooled, show_debug_reward_deltas
     )
     if include_baseline_sanity:
         _print_block_pooled(
@@ -390,14 +391,14 @@ def print_table_a_both_modes(
     per_seed = table_a["per_seed"]
 
     _print_block_by_seed_iqr(
-        "Agent vs GrevLex",
+        f"{method.upper()} vs GrevLex",
         "agent_vs_grevlex",
         per_seed,
         seeds,
         show_debug_reward_deltas,
     )
     _print_block_by_seed_iqr(
-        "Agent vs DegLex", "agent_vs_deglex", per_seed, seeds, show_debug_reward_deltas
+        f"{method.upper()} vs DegLex", "agent_vs_deglex", per_seed, seeds, show_debug_reward_deltas
     )
     if include_baseline_sanity:
         _print_block_by_seed_iqr(
